@@ -7,20 +7,11 @@
 // import { Clock, PerspectiveCamera, Scene, WebGLRenderer } from 'three'
 import * as THREE from 'three'
 import OrbitControls from 'three-orbitcontrols';
-import {
-    BloomEffect,
-    EffectComposer,
-    GlitchPass,
-    EffectPass,
-    RenderPass
-} from 'postprocessing'
 
 export default {
     name: 'Space',
     data: function() {
         const scene = new THREE.Scene()
-        // const composer = new THREE.EffectComposer(new WebGLRenderer())
-        // const effectPass = new THREE.EffectPass(camera, new BloomEffect())
         const camera = new THREE.PerspectiveCamera(
             75,
             window.innerWidth / window.innerHeight,
@@ -29,14 +20,11 @@ export default {
         )
         const renderer = new THREE.WebGLRenderer({ antialias: true })
         const light = new THREE.DirectionalLight('hsl(0, 100%, 100%)')
-        const geometry = new THREE.BoxGeometry(1, 1, 1)
-        const material = new THREE.MeshStandardMaterial({
-            side: THREE.FrontSide,
-            color: 'hsl(0, 100%, 50%)',
-            wireframe: false
-        })
-        const cube = new THREE.Mesh(geometry, material)
-        //const axes = new THREE.AxesHelper(5)
+        const geometry = new THREE.SphereGeometry(5, 50, 50)
+        const texture = new THREE.TextureLoader().load(require('../earth.jpg'))
+        console.log(texture)
+        const material = new THREE.MeshBasicMaterial({map: texture})
+        const earth = new THREE.Mesh(geometry, material)
 
         return {
             scene: scene,
@@ -44,19 +32,17 @@ export default {
             controls: {},
             renderer: renderer,
             light: light,
-            cube: cube,
-            //axes: axes,
+            earth: earth,
             speed: 0.01
         }
     },
     created: function() {
         this.scene.add(this.camera)
         this.scene.add(this.light)
-        this.scene.add(this.cube)
-        //this.scene.add(this.axes)
+        this.scene.add(this.earth)
         this.renderer.setSize(window.innerWidth, window.innerHeight)
-        this.light.position.set(0, 0, 10)
-        this.camera.position.z = 5
+        this.light.position.set(5, 0, 60)
+        this.camera.position.z = 50
         this.scene.background = new THREE.Color('hsl(0, 100%, 100%)')
     },
     mounted: function() {
@@ -69,7 +55,7 @@ export default {
         animate: function() {
             requestAnimationFrame(this.animate)
             this.renderer.render(this.scene, this.camera)
-            this.cube.rotation.y += this.speed
+            this.earth.rotation.y += this.speed
             this.controls.update()
         }
     },
