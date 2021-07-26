@@ -1,22 +1,21 @@
 <template lang="pug">
     #app
         Space
+        Viewer
 </template>
 
 <script>
 import Space from './components/Space'
+import Viewer from './components/Viewer'
 
 export default {
   name: 'App',
   components: {
-    Space
+    Space,
+    Viewer
   }
 }
 </script>
 
 <style>
-body {
-    margin: 0;
-    overflow: hidden;
-}
 </style>
