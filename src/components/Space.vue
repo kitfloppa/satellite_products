@@ -5,40 +5,33 @@
 <script>
 /* eslint-disable */
 import * as THREE from 'three'
-import * as satellite from 'satellite'
 import OrbitControls from 'three-orbitcontrols';
-import { addSatellite } from '@/components/satellites/satellite.js'
+import * as TLE from '@/components/satellites/tle.js'
+import * as satell from '@/components/satellites/satell.js'
+import { earthRadius } from "satellite.js/lib/constants";
 
 export default {
     name: 'Space',
     data: function() {
-        const NOAA20_TLE =
-        `1 43013U 17073A   21207.16182848  .00000002  00000-0  21447-4 0  9993
-        2 43013  98.7212 145.2178 0000870  87.0625 273.0650 14.19549652190934`
-
-        //const satrec = satellite.twoline2satrec(
-            //NOAA20_TLE.split('\n')[0].trim(),
-            //NOAA20_TLE.split('\n')[1].trim()
-        //)
         
         const width = 0.6
-        const date = new Date();
         const scene = new THREE.Scene()
         const camera = new THREE.PerspectiveCamera(
             75,
             (window.innerWidth * width) / window.innerHeight,
-            1,
-            1000
+            0.1,
+            1e27
         )
         const renderer = new THREE.WebGLRenderer({antialias: false, alpha: true})
         const ambientlight = new THREE.AmbientLight(0x888888)
         const directionallight = new THREE.DirectionalLight(0xfdfcf0, 1)
-        const geometry = new THREE.SphereGeometry(5, 50, 50)
-        const cloudgeometry = new THREE.SphereGeometry(5.01, 50, 50);
-        const stargeometry = new THREE.SphereGeometry(1000, 50, 50);
+        const geometry = new THREE.SphereGeometry(earthRadius, 100, 100)
+        const cloudgeometry = new THREE.SphereGeometry(earthRadius + 20, 100, 100);
+        const stargeometry = new THREE.SphereGeometry(earthRadius * 9, 50, 50);
         const texture = new THREE.TextureLoader().load(require('../assets/image/earth.jpg'))
         const bumptexture = new THREE.TextureLoader().load(require('../assets/image/earthbump.jpg'))
         const spectexture = new THREE.TextureLoader().load(require('../assets/image/earthspec.jpg'))
+        const noaageometry = new THREE.SphereGeometry(60, 100, 100)
         
         const material = new THREE.MeshPhongMaterial({
             map: texture,
@@ -47,39 +40,32 @@ export default {
             color: new THREE.Color('grey'),
             specular: 0x333333,
             shininess: 25,
-            bumpScale: 0.005
+            bumpScale: 0.005,
         })
 
         const cloudmaterial = new THREE.MeshPhongMaterial({
-            map: new THREE.ImageUtils.loadTexture(require('../assets/image/clouds.jpg')),
+            map: new THREE.TextureLoader().load(require('../assets/image/clouds.jpg')),
             transparent: true,
-            opacity: 0.1
+            opacity: 0.1,
+            polygonOffset: true,
+            polygonOffsetFactor: -10,
+            polygonOffsetUnits: -10
         });
 
         const starmaterial = new THREE.MeshPhongMaterial({
-            map: new THREE.ImageUtils.loadTexture(require('../assets/image/stars.png')),
+            map: new THREE.TextureLoader().load(require('../assets/image/stars.png')),
             side: THREE.BackSide,
             shininess: 0
+        });
+
+        const noaamaterial = new THREE.MeshPhongMaterial({
+            color: new THREE.Color('yellow')
         });
 
         const earth = new THREE.Mesh(geometry, material)
         const clouds = new THREE.Mesh(cloudgeometry, cloudmaterial);
         const stars = new THREE.Mesh(stargeometry, starmaterial);
-
-        //const positionAndVelocity = satellite.propagate(satrec, date);
-        //const gmst = satellite.gstime(date);
-        //const position = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
-
-        const moongeometry = new THREE.SphereGeometry(0.1, 50, 50);
-        const moonmaterial = new THREE.MeshPhongMaterial({
-            color: new THREE.Color('grey')
-        });
-        
-        const moon = new THREE.Mesh(moongeometry, moonmaterial);
-
-        const geometryiorbit = new THREE.TorusGeometry(5.5, 0.01, 16, 100);
-        const materialorbit = new THREE.MeshBasicMaterial( { color: new THREE.Color('white'), side: THREE.DoubleSide } );
-        const orbit = new THREE.Mesh(geometryiorbit, materialorbit);
+        const noaa = new THREE.Mesh(noaageometry, noaamaterial);
 
         return {
             scene: scene,
@@ -91,27 +77,32 @@ export default {
             earth: earth,
             clouds: clouds,
             stars: stars,
-            moon: moon,
-            orbit: orbit,
-            earthspeed: -0.0007,
-            cloudspeed: 0.00005,
-            starspeed: 0.0001,
-            theta: 0,
+            noaa: noaa,
+            satelli: new satell.Satellite(),
+            earthspeed: -0.00035,
+            cloudspeed: 0.00002,
+            starspeed: 0.0003,
             width: width
         }
     },
     created: function() {
-        this.scene.add(this.camera)
+        var noaapos = TLE.getPositionFromTle(this.satelli, 'https://celestrak.com/NORAD/elements/noaa.txt', new Date())
+        TLE.addorbit(this.satelli, 'https://celestrak.com/NORAD/elements/noaa.txt')
+
+        this.scene.add(this.camera) 
         this.scene.add(this.ambientlight)
         this.scene.add(this.directionallight)
         this.scene.add(this.earth)
         this.scene.add(this.clouds)
         this.scene.add(this.stars)
-        this.scene.add(this.moon)
-        this.scene.add(this.orbit)
+        this.noaa.position.set(noaapos.x, noaapos.y, noaapos.z)
+        this.earth.add(this.noaa)
+        this.earth.add(this.satelli.orbit.orbitcurve)
         this.renderer.setSize(window.innerWidth * this.width, window.innerHeight)
-        this.directionallight.position.set(20, 10, 20)
-        this.camera.position.z = 13
+        this.directionallight.position.set(0, 59333894, -137112541)
+        this.camera.position.z = -16000
+        this.camera.position.x = 18000;
+        this.camera.lookAt(0, 0, 0);
         this.scene.background = new THREE.Color(0x000000)
     },
     mounted: function() {
@@ -122,18 +113,17 @@ export default {
     },
     methods: {
         animate: function() {
-            var r = 5.5;
             var dTheta = 2 * Math.PI / 20000;
             
             requestAnimationFrame(this.animate)
+            var noaapos = TLE.getPositionFromTle(this.satelli, 'https://celestrak.com/NORAD/elements/noaa.txt', new Date())
             this.renderer.render(this.scene, this.camera)
             this.earth.rotation.y += this.earthspeed
             this.clouds.rotation.y += this.cloudspeed
             this.stars.rotation.y += this.starspeed
+            this.noaa.position.set(noaapos.x, noaapos.y, noaapos.z)
 
             this.theta += dTheta;
-            this.moon.position.x = r * Math.cos(this.theta);
-            this.moon.position.y = r * Math.sin(this.theta);
             this.controls.update()
         }
     }

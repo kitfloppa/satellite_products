@@ -1,64 +1,70 @@
 /* eslint-disable */
-import * as satellite from 'satellite'
+import * as MATH from 'mathjs'
+import * as THREE from 'three'
 
-export const EarthRadius = 6371;
-
-export const parseTleFile = (fileContent, stationOptions) => {
-    const result = []
-    let current = null
+export let parseTleFile = (satell, file) => {
+    const lines = file.split("\n")
 
     for (let i = 0; i < lines.length; ++i) {
-        const line = lines[i].trim()
+        const line = lines[i].replace('[+]', '').trim()
 
         if (line.length === 0) continue
 
-        if (line[0] === '1') {
-            current.tle1 = line
-        }
-        else if (line[0] === '2') {
-            current.tle2 = line
-        }
-        else {
-            current = { 
-                name: line, 
-                ...stationOptions
-            };
-            result.push(current)
+        if (line == 'NOAA 20') {
+            satell.name = line
+            satell.tle1 = lines[i + 1]
+            satell.tle2 = lines[i + 2]
         }
     }
 
-    return result;
+    return satell
 }
 
-const toxyz = (v) => {
+let loadTLEFileSatellite = (satell, url) => {
+    url = 'https://api.allorigins.win/raw?url=' + url
+    var xmlhttp = new XMLHttpRequest()
+    xmlhttp.open("GET", url, false)
+    xmlhttp.send()
+    parseTleFile(satell, xmlhttp.responseText)
+}
+
+const toThree = (v) => {
     return { x: v.x, y: v.z, z: -v.y }
 }
 
-const getSolution = (satel, date) => {
-    
-    if (!satel.satrec) {
-        const { tle1, tle2 } = satel
-        if (!tle1 || !tle2) return null
-        satel.satrec = satellite.twoline2satrec(tle1, tle2)
+export const getPositionFromTle = (satell, url, date) => {
+    var satellite = require('satellite.js')
+
+    if ((satell.tle1 == 0) && (satell.tle1 == 0)) {
+        loadTLEFileSatellite(satell, url)
     }
 
-    return satellite.propagate(satel.satrec, date)
-}
+    const satrec = satellite.twoline2satrec(satell.tle1, satell.tle2)
+    satell.satrec = satrec
 
-
-// type: 1 ECEF coordinates   2: ECI coordinates
-export const getPositionFromTle = (satel, date, type = 1) => {
-    if (!satel || !date) return null
-
-    const positionVelocity = getSolution(satel, date)
-
+    const positionVelocity = satellite.propagate(satrec, date)
     const positionEci = positionVelocity.position
-    if (type === 2) return toxyz(positionEci)
-
     const gmst = satellite.gstime(date)
 
-    if (!positionEci) return null
-
     const positionEcf = satellite.eciToEcf(positionEci, gmst)
-    return toxyz(positionEcf)
+    satell.pos = toThree(positionEcf)
+    return satell.pos
+}
+
+export const addorbit = (satell, url) => {
+    satell.orbit.revsperday = satell.satrec.no * (1440 / (2.0 * MATH.pi))
+    satell.orbit.minutes = (1440 * 2) / satell.orbit.revsperday
+    satell.orbit.date = new Date()
+    const material = new THREE.LineBasicMaterial({color: 0x999999, opacity: 1.0, transparent: true})
+    
+    for (var i = 0; i <= satell.orbit.minutes; i += satell.orbit.mininterval) {
+        const date = new Date(satell.orbit.date.getTime() + i * 60000)
+        const pos = getPositionFromTle(satell, url, date)
+        if (!pos) continue
+        satell.orbit.points.push(new THREE.Vector3(pos.x, pos.y, pos.z))
+    }
+    
+    const geometry = new THREE.BufferGeometry().setFromPoints(satell.orbit.points)
+    satell.orbit.orbitcurve = new THREE.Line(geometry, this.orbitMaterial);
+    console.log(satell)
 }
