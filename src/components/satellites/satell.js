@@ -32,7 +32,7 @@ export class Photo {
     constructor(satrec, ndate, ncolor, ndata, name) {
         var radius = 40, widthSegments = 100, heightSegments = 100
         var geometry = new THREE.SphereGeometry(radius, widthSegments, heightSegments)
-        var material = new THREE.MeshPhongMaterial({color: new THREE.Color('green')});
+        var material = new THREE.MeshPhongMaterial({color: new THREE.Color('red')});
         
         this.date = new Date(ndate)
         this.color = ncolor
@@ -46,8 +46,7 @@ export class Photo {
 }
 
 export class Satellite {
-    constructor(nurl) {
-        var xmlhttp = new XMLHttpRequest()
+    constructor() {
         var satellite = require('satellite.js')
         var photomanager = require('@/assets/photos/photo.json')
         var radius = 60, widthSegments = 100, heightSegments = 100
@@ -57,25 +56,11 @@ export class Satellite {
         })
         
         this.photos = []
-        this.url = nurl
-        xmlhttp.open("GET", this.url, false)
-        xmlhttp.send()
-        const lines = xmlhttp.responseText.split("\n")
-
-        for (let i = 0; i < lines.length; ++i) {
-            const line = lines[i].replace('[+]', '').trim()
-
-            if (line.length === 0) continue
-
-            if (line == 'NOAA 20') {
-                this.name = line
-                this.tle1 = lines[i + 1]
-                this.tle2 = lines[i + 2]
-            }
-        }
+        this.tle1 = '1 43013U 17073A   21242.12214069  .00000006  00000-0  23507-4 0  9992'
+        this.tle2 = '2 43013  98.7223 179.6531 0001270  97.6122 262.5199 14.19552269195893'
         
         this.satrec = satellite.twoline2satrec(this.tle1, this.tle2)
-        this.date = new Date(1626923700000)
+        this.date = new Date()
         this.pos = TLE.getPositionFromTle(this.satrec, this.date)
         this.orbit = new Orbit(this.satrec, this.date)
         

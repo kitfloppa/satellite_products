@@ -5,7 +5,6 @@
 <script>
 /* eslint-disable */
 import * as THREE from 'three'
-import store from '@/components/store'
 import * as mmi from '@/assets/photos/three_mmi.js'
 import OrbitControls from 'three-orbitcontrols'
 import * as TLE from '@/components/satellites/tle.js'
@@ -16,7 +15,6 @@ export default {
     name: 'Space',
     data: function() {
         const width = 0.6
-        const url = 'https://celestrak.com/NORAD/elements/noaa.txt'
         const scene = new THREE.Scene()
         
         const camera = new THREE.PerspectiveCamera(
@@ -72,7 +70,7 @@ export default {
             earth: earth,
             clouds: clouds,
             stars: stars,
-            satelli: new satell.Satellite(url),
+            satelli: new satell.Satellite(),
             earthspeed: -0.0002,
             cloudspeed: 0.00001,
             starspeed: 0.0001,

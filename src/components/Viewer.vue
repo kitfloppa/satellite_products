@@ -1,13 +1,14 @@
 <template lang="pug">
     div(id='vie')
-        div(class='slider')
-            div(class='slider_wrapper')
-                div(class='slider_items')
-                    div(class='slider_item')
-                        img(id='photo1')
-                    div(class='slider_item')
-                        img(id='photo2')
-                        img(id='dt')
+      div(class='slider')
+        div(class='slider_wrapper')
+          p(class='text') Satellite: NOAA - 20
+          div(class='slider_items')
+            div(class='slider_item')
+              img(id='photo1')
+            div(class='slider_item')
+              img(id='photo2')
+              img(id='dt')
 </template>
 
 <script>
@@ -43,7 +44,7 @@ img {
 
 #dt {
     bottom: 50%;
-    z-index: 1;
+    z-index: 2;
 }
 
 .slider {
@@ -105,5 +106,26 @@ img {
 
 .slider_indicator_active {
   background-color: #fff;
+}
+
+.text {
+  color: #fff;
+  text-align: center;
+  font-size: 34px;
+  font-weight: bold;
+  font-family: 'Circe Bold';
+  z-index: 1;
+  margin-top: 5.5%;
+  margin-bottom: -11%;
+}
+
+@font-face {
+	font-family: 'Circe Bold';
+	src: url('../assets/fonts/circe_bold.eot'); /* IE 9 Compatibility Mode */
+	src: url('../assets/fonts/circe_bold.eot?#iefix') format('embedded-opentype'), /* IE < 9 */
+		url('../assets/fonts/circe_bold.woff2') format('woff2'), /* Super Modern Browsers */
+		url('../assets/fonts/circe_bold.woff') format('woff'), /* Firefox >= 3.6, any other modern browser */
+		url('../assets/fonts/circe_bold.ttf') format('truetype'), /* Safari, Android, iOS */
+		url('../assets/fonts/circe_bold.svg#circe_bold') format('svg'); /* Chrome < 4, Legacy iOS */
 }
 </style>

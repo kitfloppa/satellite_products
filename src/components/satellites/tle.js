@@ -1,5 +1,4 @@
 /* eslint-disable */
-import * as THREE from 'three'
 
 const toThree = (v) => {
     return { x: v.x, y: v.z, z: -v.y }
