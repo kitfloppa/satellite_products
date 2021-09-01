@@ -29,7 +29,7 @@ export class Orbit {
 }
 
 export class Photo {
-    constructor(satrec, ndate, ncolor, ndata, name) {
+    constructor(satrec, ndate, ncolor, ndata, name, earth, namesat) {
         var radius = 80, widthSegments = 100, heightSegments = 100
         var geometry = new THREE.SphereGeometry(radius, widthSegments, heightSegments)
         var material = new THREE.MeshPhongMaterial({color: new THREE.Color('green')});
@@ -38,6 +38,10 @@ export class Photo {
         this.color = ncolor
         this.data = ndata
         this.pos = TLE.getPositionFromTle(satrec, this.date)
+
+        this.orbit = new Orbit(satrec, this.date)
+        this.earth = earth
+        this.namesat = namesat
         
         this.mesh = new THREE.Mesh(geometry, material)
         this.mesh.position.set(this.pos.x, this.pos.y, this.pos.z)
@@ -46,14 +50,12 @@ export class Photo {
 }
 
 export class Satellite {
-    constructor() {
+    constructor(earth) {
         var satellite = require('satellite.js')
         var photomanager = require('@/assets/photos/photo.json')
         var radius = 60, widthSegments = 100, heightSegments = 100
         var geometry = new THREE.SphereGeometry(radius, widthSegments, heightSegments)
-        var material = new THREE.MeshPhongMaterial({
-            color: new THREE.Color('yellow'),
-        })
+        var material = new THREE.MeshPhongMaterial({color: new THREE.Color('yellow')})
         
         this.photos = []
         this.tle1 = '1 43013U 17073A   21242.12214069  .00000006  00000-0  23507-4 0  9992'
@@ -69,7 +71,9 @@ export class Satellite {
         this.mesh.name = 'satellite'
 
         for (var i = 0; i < photomanager.photos.length; ++i) {
-            this.photos.push(new Photo(this.satrec, photomanager.photos[i].time, photomanager.photos[i].color, photomanager.photos[i].data, i))
+            this.photos.push(new Photo(this.satrec, photomanager.photos[i].time, 
+                photomanager.photos[i].color, photomanager.photos[i].data, i, earth, 
+                photomanager.photos[i].name))
         }
     }
 }

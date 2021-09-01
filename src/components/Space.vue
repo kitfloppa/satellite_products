@@ -31,8 +31,7 @@ export default {
         const geometry = new THREE.SphereGeometry(earthRadius, 100, 100)
         const cloudgeometry = new THREE.SphereGeometry(earthRadius + 20, 100, 100);
         const stargeometry = new THREE.SphereGeometry(earthRadius * 9, 50, 50);
-        const texture = new THREE.TextureLoader().load(require('../assets/image/earth.jpg'))
-       
+        const texture = new THREE.TextureLoader().load(require('../assets/image/earth.jpg'))       
         
         const material = new THREE.MeshPhongMaterial({
             map: texture,
@@ -71,11 +70,12 @@ export default {
             earth: earth,
             clouds: clouds,
             stars: stars,
-            satelli: new satell.Satellite(),
+            satelli: new satell.Satellite(earth),
             earthspeed: -0.0002,
             cloudspeed: 0.00001,
             starspeed: 0.0001,
             width: width,
+            orbit: 0,
             mm: 0
         }
     },
@@ -91,20 +91,25 @@ export default {
         this.scene.add(this.earth)
         this.scene.add(this.clouds)
         this.scene.add(this.stars)
-        this.earth.add(this.satelli.mesh) 
-        this.earth.add(this.satelli.orbit.orbitcurve)
         this.satelli.photos.forEach(el => {this.earth.add(el.mesh)})
         
         this.mm = new mmi.MouseMeshInteraction(this.earth, this.camera)
-
+        
         this.satelli.photos.forEach(el => {
             this.mm.addHandler(el.mesh.name, 'click', function() {
+                el.mesh.material.color.set('red')
                 var element_p1 = document.getElementById('photo1')
                 var element_p2= document.getElementById('photo2')
                 var element_d = document.getElementById('dt')
+                var element_t = document.getElementById('text')
+
                 element_p1.src = el.color
                 element_p2.src = el.color
                 element_d.src = el.data
+                element_t.innerHTML = el.namesat
+                console.log(el.namesat)
+
+                el.earth.add(el.orbit.orbitcurve)
             })
         })
         
@@ -131,6 +136,17 @@ export default {
             this.clouds.rotation.y += this.cloudspeed
             this.stars.rotation.y += this.starspeed
             this.satelli.mesh.position.set(this.satelli.pos.x, this.satelli.pos.y, this.satelli.pos.z)
+
+            this.satelli.photos.forEach(el => {
+                if (this.mm.last_pressed_mesh !== undefined) {
+                    if (this.mm.last_pressed_mesh.name != el.mesh.name) {
+                        if (el.mesh.material.color.r == 1) {
+                            el.mesh.material.color.set('green')
+                            el.earth.remove(el.orbit.orbitcurve)
+                        }
+                    }
+                }
+            })
 
             this.controls.update()
         },

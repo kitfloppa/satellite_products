@@ -8,7 +8,7 @@
             img(id='iapu' src='../assets/logos/iapu.png')
             img(id='roscosmos' src='../assets/logos/roscosmos.png')
             img(id='skaneks' src='../assets/logos/skaneks.png')
-          p(class='text') NOAA - 20
+          p(id='text')
           div(class='slider_items')
             div(class='slider_item')
               img(class='ph' id='photo1')
@@ -114,7 +114,7 @@ export default {
   background-color: #fff;
 }
 
-.text {
+#text {
   color: #fff;
   text-align: center;
   font-size: 35px;
