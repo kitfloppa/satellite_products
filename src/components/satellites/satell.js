@@ -30,9 +30,9 @@ export class Orbit {
 
 export class Photo {
     constructor(satrec, ndate, ncolor, ndata, name) {
-        var radius = 40, widthSegments = 100, heightSegments = 100
+        var radius = 80, widthSegments = 100, heightSegments = 100
         var geometry = new THREE.SphereGeometry(radius, widthSegments, heightSegments)
-        var material = new THREE.MeshPhongMaterial({color: new THREE.Color('red')});
+        var material = new THREE.MeshPhongMaterial({color: new THREE.Color('green')});
         
         this.date = new Date(ndate)
         this.color = ncolor
@@ -68,7 +68,7 @@ export class Satellite {
         this.mesh.position.set(this.pos.x, this.pos.y, this.pos.z)
         this.mesh.name = 'satellite'
 
-        for (var i = 0; i < 8; ++i) {
+        for (var i = 0; i < photomanager.photos.length; ++i) {
             this.photos.push(new Photo(this.satrec, photomanager.photos[i].time, photomanager.photos[i].color, photomanager.photos[i].data, i))
         }
     }

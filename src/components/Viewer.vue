@@ -8,7 +8,7 @@
             img(id='iapu' src='../assets/logos/iapu.png')
             img(id='roscosmos' src='../assets/logos/roscosmos.png')
             img(id='skaneks' src='../assets/logos/skaneks.png')
-          p(class='text') Satellite: NOAA - 20
+          p(class='text') NOAA - 20
           div(class='slider_items')
             div(class='slider_item')
               img(class='ph' id='photo1')
@@ -43,7 +43,7 @@ export default {
 }
 
 .ph {
-    width: 630px;
+    width: 800px;
     margin: 100px 9% 0px;
     position: relative;
 }
@@ -117,7 +117,7 @@ export default {
 .text {
   color: #fff;
   text-align: center;
-  font-size: 34px;
+  font-size: 35px;
   font-weight: bold;
   font-family: 'Circe Bold';
   z-index: 1;
@@ -127,41 +127,44 @@ export default {
 
 #logos {
   background-color: #fff;
+  min-height: 79px;
+  margin-bottom: -30px;
+  padding-top: 10px;
 }
 
 #cpd {
-    margin-top: -1%;
+    margin-top: 1%;
     margin-bottom: 0%;
-    margin-left: 15%;
-    width: 51px;
+    margin-left: 20%;
+    width: 80px;
 }
 
 #fefu {
-    margin-top: -1%;
+    margin-top: -2%;
     margin-bottom: 0%;
     margin-left: 5%;
-    width: 70px;
+    width: 90px;
 }
 
 #iapu {
     margin-top: -1%;
     margin-bottom: 0%;
     margin-left: 5%;
-    width: 80px;
+    width: 100px;
 }
 
 #roscosmos {
     margin-top: -1%;
     margin-bottom: 0%;
     margin-left: 5%;
-    width: 80px;
+    width: 95px;
 }
 
 #skaneks {
     margin-top: -1%;
     margin-bottom: 0%;
     margin-left: 5%;
-    width: 80px;
+    width: 95px;
 }
 
 @font-face {
