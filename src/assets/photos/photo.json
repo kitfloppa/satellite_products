@@ -39,6 +39,11 @@
             "time": 1626912900881,
             "color": "https://touhouproject.polarorbit.space/static/V2021203001200.nc_color.jpg",
             "data": "https://touhouproject.polarorbit.space/static/V2021203001200.nc_data.png"
+        },
+        {
+            "time": 1626913620876,
+            "color": "https://touhouproject.polarorbit.space/static/V2021203002400.nc_color.jpg",
+            "data": "https://touhouproject.polarorbit.space/static/V2021203002400.nc_data.png"
         }
     ]
 }

@@ -44,7 +44,7 @@ export class MouseMeshInteraction {
 	handleEvent(e) {
 		switch(e.type) {
 			case "mousemove": {
-				this.mouse.x = (event.clientX / (window.innerWidth * 0.6)) * 2 - 1;
+				this.mouse.x = (event.clientX / (window.innerWidth * 0.5)) * 2 - 1;
 				this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 				this.updated = true;
 				this.event = 'motion';

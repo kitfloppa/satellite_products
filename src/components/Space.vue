@@ -1,5 +1,6 @@
 <template lang="pug">
-    div(id='space' ref='canvas' width='60%')
+    div(id='main')
+        div(id='space' ref='canvas' width='60%')
 </template>
 
 <script>
@@ -14,7 +15,7 @@ import { earthRadius } from "satellite.js/lib/constants"
 export default {
     name: 'Space',
     data: function() {
-        const width = 0.6
+        const width = 0.5
         const scene = new THREE.Scene()
         
         const camera = new THREE.PerspectiveCamera(

@@ -2,13 +2,19 @@
     div(id='vie')
       div(class='slider')
         div(class='slider_wrapper')
+          div(id='logos')
+            img(id='cpd' src='../assets/logos/cpd.png')
+            img(id='fefu' src='../assets/logos/FEFU.png')
+            img(id='iapu' src='../assets/logos/iapu.png')
+            img(id='roscosmos' src='../assets/logos/roscosmos.png')
+            img(id='skaneks' src='../assets/logos/skaneks.png')
           p(class='text') Satellite: NOAA - 20
           div(class='slider_items')
             div(class='slider_item')
-              img(id='photo1')
+              img(class='ph' id='photo1')
             div(class='slider_item')
-              img(id='photo2')
-              img(id='dt')
+              img(class='ph' id='photo2')
+              img(class='ph' id='dt')
 </template>
 
 <script>
@@ -30,15 +36,15 @@ export default {
     position: fixed;
     right: 0;
     top: 0;
-    width: 40%;
+    width: 50%;
     height: 100%;
     background: black;
     overflow: hidden;
 }
 
-img {
-    width: 700px;
-    margin: 120px 35px;
+.ph {
+    width: 630px;
+    margin: 100px 9% 0px;
     position: relative;
 }
 
@@ -117,6 +123,45 @@ img {
   z-index: 1;
   margin-top: 5.5%;
   margin-bottom: -11%;
+}
+
+#logos {
+  background-color: #fff;
+}
+
+#cpd {
+    margin-top: -1%;
+    margin-bottom: 0%;
+    margin-left: 15%;
+    width: 51px;
+}
+
+#fefu {
+    margin-top: -1%;
+    margin-bottom: 0%;
+    margin-left: 5%;
+    width: 70px;
+}
+
+#iapu {
+    margin-top: -1%;
+    margin-bottom: 0%;
+    margin-left: 5%;
+    width: 80px;
+}
+
+#roscosmos {
+    margin-top: -1%;
+    margin-bottom: 0%;
+    margin-left: 5%;
+    width: 80px;
+}
+
+#skaneks {
+    margin-top: -1%;
+    margin-bottom: 0%;
+    margin-left: 5%;
+    width: 80px;
 }
 
 @font-face {
