@@ -3,16 +3,16 @@ use serde::Serialize;
 #[derive(Clone, Serialize)]
 pub struct Satellite {
     name: String,
-    lat: f32,
-    lng: f32,
+    tle1: String,
+    tle2: String,
 }
 
 impl Satellite {
-    pub fn new(name: &str, lat: f32, lng: f32) -> Satellite {
+    pub fn new(name: &str, tle1: &str, tle2: &str) -> Satellite {
         Satellite {
             name: String::from(name),
-            lat,
-            lng,
+            tle1: String::from(tle1),
+            tle2: String::from(tle2),
         }
     }
 }

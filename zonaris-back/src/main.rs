@@ -28,11 +28,15 @@ async fn main() {
     );
     let pool = Pool::builder(config).build().unwrap();
 
-    let satellite_serivce = SatelliteServiceMock::new(vec![
-        Satellite::new("SPACE STATION", -31.34, -17.80),
-        Satellite::new("SES 1", -0.02, -100.99),
-        Satellite::new("NOAA 19", -8.29, -169.15),
-    ]);
+    let tles = std::fs::read_to_string("celestrak.txt")
+        .expect("failed to load celestrak data")
+        .lines()
+        .collect::<Vec<_>>()
+        .chunks_exact(3)
+        .map(|slice| Satellite::new(slice[0], slice[1], slice[2]))
+        .collect::<Vec<_>>();
+
+    let satellite_serivce = SatelliteServiceMock::new(tles);
 
     let app_context = routes::AppContext {
         pool,
