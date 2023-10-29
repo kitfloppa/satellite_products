@@ -3,6 +3,7 @@ pub(crate) mod model {
 }
 
 pub(crate) mod service {
+    pub(crate) mod oceancolor;
     pub(crate) mod satellite;
 }
 
@@ -12,16 +13,19 @@ use diesel_async::pooled_connection::deadpool::Pool;
 use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 use dotenv::dotenv;
 use model::satellite::Satellite;
+use service::oceancolor::OceanColorServiceDefault;
 use service::satellite::SatelliteServiceMock;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
+    env_logger::init();
 
-    let database_connection_url = std::env::var("DATABASE_URL").unwrap();
-    let server_ip = std::env::var("SERVER_IP").unwrap();
+    let database_connection_url = std::env::var("DATABASE_URL")?;
+    let server_ip = std::env::var("SERVER_IP")?;
+    let oceancolor_authorization = std::env::var("OCEANCOLOR_AUTHORIZATION")?;
 
     let config = AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(
         database_connection_url,
@@ -38,15 +42,26 @@ async fn main() {
 
     let satellite_serivce = SatelliteServiceMock::new(tles);
 
+    let oceancolor_service = OceanColorServiceDefault::new(oceancolor_authorization);
+
+    // let images = oceancolor_service.get_last_24hours().await?;
+    // let mut i = 0;
+    // for image in images {
+    //     image.save(format!("images/{}.png", i))?;
+    //     i += 1;
+    // }
+
     let app_context = routes::AppContext {
         pool,
         satellite_service: Arc::new(satellite_serivce),
+        oceancolor_service: Arc::new(oceancolor_service),
     };
     let app = routes::router(app_context);
 
     let addr = server_ip.parse::<SocketAddr>().unwrap();
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
-        .await
-        .unwrap();
+        .await?;
+
+    Ok(())
 }

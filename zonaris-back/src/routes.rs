@@ -4,11 +4,13 @@ use axum::Router;
 use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 
 pub type SatelliteService = Arc<dyn crate::service::satellite::SatelliteService + Send + Sync>;
+pub type OceanColorService = Arc<dyn crate::service::oceancolor::OceanColorService + Send + Sync>;
 
 pub struct AppContext {
     pub pool:
         deadpool::managed::Pool<AsyncDieselConnectionManager<diesel_async::AsyncPgConnection>>,
     pub satellite_service: SatelliteService,
+    pub oceancolor_service: OceanColorService,
 }
 
 mod satellite {

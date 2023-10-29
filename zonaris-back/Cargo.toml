@@ -11,3 +11,8 @@ diesel-async = { version = "0.4.1", features = ["postgres", "deadpool"] }
 deadpool = "0.9.5"
 serde = { version = "1.0.188", features = ["derive"] }
 dotenv = "0.15.0"
+netcdf = { git = "https://github.com/georust/netcdf.git", features = ["static"] }
+image = "0.24.7"
+reqwest = { git = "https://github.com/Unkorunk/reqwest.git", features = ["cookies"] }
+env_logger = "0.10.0"
+tempfile = "3.8.1"
