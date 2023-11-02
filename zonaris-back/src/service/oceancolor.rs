@@ -1,13 +1,37 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use axum::async_trait;
+use chrono::prelude::*;
 use image::ImageBuffer;
+
+pub struct SearchItem(String);
+
+impl SearchItem {
+    fn new(name: String) -> SearchItem {
+        SearchItem(name)
+    }
+
+    pub fn get_time(&self) -> Result<NaiveDateTime, String> {
+        return NaiveDateTime::parse_from_str(
+            self.0.split('.').nth(1).ok_or("bad format")?,
+            "%Y%m%dT%H%M%S",
+        )
+        .map_err(|r| r.to_string());
+    }
+}
 
 #[async_trait]
 pub trait OceanColorService {
-    async fn get_last_24hours(
+    async fn search(
         &self,
-    ) -> Result<Vec<ImageBuffer<image::Rgba<u8>, Vec<u8>>>, Box<dyn std::error::Error>>;
+        sdate: NaiveDateTime,
+        edate: NaiveDateTime,
+    ) -> Result<Vec<SearchItem>, Box<dyn std::error::Error>>;
+
+    async fn get(
+        &self,
+        item: SearchItem,
+    ) -> Result<ImageBuffer<image::Rgba<u8>, Vec<u8>>, Box<dyn std::error::Error>>;
 }
 
 pub struct OceanColorServiceDefault {
@@ -33,14 +57,23 @@ struct GeophysicalData {
 enum GeophysicalDataError {
     Netcdf(netcdf::error::Error),
     InvalidFileStructure(String),
+    VariableNotFound(String),
     AttributeNotFound(String),
-    Internal,
+    FilenameExtractionFromUrlFailed(reqwest::Url),
 }
+
+impl std::fmt::Display for GeophysicalDataError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "An error occurred in the GeophysicalData module.")
+    }
+}
+
+impl std::error::Error for GeophysicalDataError {}
 
 impl GeophysicalData {
     fn get_attr<'a, T>(var: &netcdf::Variable<'a>, name: &str) -> Result<T, GeophysicalDataError>
     where
-        T: TryFrom<netcdf::AttrValue>,
+        T: TryFrom<netcdf::AttrValue, Error = netcdf::error::Error>,
     {
         return T::try_from(
             var.attribute(name)
@@ -48,7 +81,7 @@ impl GeophysicalData {
                 .value()
                 .map_err(|r| GeophysicalDataError::Netcdf(r))?,
         )
-        .map_err(|r| GeophysicalDataError::Internal); // TODO normal error
+        .map_err(|r| GeophysicalDataError::Netcdf(r));
     }
 
     fn load_netcdf(
@@ -61,18 +94,18 @@ impl GeophysicalData {
             .ok_or(GeophysicalDataError::InvalidFileStructure(String::from(
                 "failed to fetch 'geophysical_data' group",
             )))?;
-        let sst4 = geophysical_data.variable(name).unwrap();
+        let sst4 = geophysical_data
+            .variable(name)
+            .ok_or(GeophysicalDataError::VariableNotFound(String::from(name)))?;
 
-        // let valid_min =
-        //     i16::try_from(sst4.attribute("valid_min").unwrap().value().unwrap()).unwrap();
-        // let valid_max =
-        //     i16::try_from(sst4.attribute("valid_max").unwrap().value().unwrap()).unwrap();
         let fill_value = GeophysicalData::get_attr::<i16>(&sst4, "_FillValue")?;
 
         let scale_factor = GeophysicalData::get_attr::<f32>(&sst4, "scale_factor")?;
         let add_offset = GeophysicalData::get_attr::<f32>(&sst4, "add_offset")?;
 
-        let data = sst4.values_arr::<i16, _>((.., ..)).unwrap();
+        let data = sst4
+            .values_arr::<i16, _>((.., ..))
+            .map_err(|r| GeophysicalDataError::Netcdf(r))?;
 
         let height = data.shape()[0];
         let width = data.shape()[1];
@@ -185,20 +218,22 @@ impl reqwest::redirect::Filter for AllowCrossOrigin {
 
 #[async_trait]
 impl OceanColorService for OceanColorServiceDefault {
-    async fn get_last_24hours(
+    async fn search(
         &self,
-    ) -> Result<Vec<ImageBuffer<image::Rgba<u8>, Vec<u8>>>, Box<dyn std::error::Error>> {
-        let tmpdir = tempfile::tempdir()?;
+        sdate: NaiveDateTime,
+        edate: NaiveDateTime,
+    ) -> Result<Vec<SearchItem>, Box<dyn std::error::Error>> {
+        let fmt = "%Y-%m-%d %H:%M:%S";
+        let sdate = sdate.format(fmt).to_string();
+        let edate = edate.format(fmt).to_string();
 
         let mut params = HashMap::new();
         params.insert("results_as_file", "1");
         params.insert("sensor_id", "8");
         params.insert("dtid", "1102");
-        // TODO: valid parameters
-        params.insert("sdate", "2023-10-28 15:00:00");
-        params.insert("edate", "2023-10-28 16:00:00");
+        params.insert("sdate", &sdate);
+        params.insert("edate", &edate);
         params.insert("subType", "1");
-        params.insert("addurl", "1");
 
         let response = reqwest::Client::new()
             .post("https://oceandata.sci.gsfc.nasa.gov/api/file_search")
@@ -206,60 +241,77 @@ impl OceanColorService for OceanColorServiceDefault {
             .send()
             .await?;
 
-        let urls = response
+        let names = response
             .text()
             .await?
             .lines()
             .map(|line| String::from(line))
             .collect::<Vec<_>>();
 
-        let mut result = Vec::new();
-        for url in urls {
-            let cookie_provider = Arc::new(reqwest::cookie::Jar::default());
-
-            let mut authorization_header_value = reqwest::header::HeaderValue::from_str(&format!(
-                "Basic {}",
-                self.oceancolor_authorization
-            ))?;
-            authorization_header_value.set_sensitive(true);
-
-            let mut headers = reqwest::header::HeaderMap::new();
-            headers.insert(reqwest::header::AUTHORIZATION, authorization_header_value);
-
-            let mut redirect_policy = reqwest::redirect::Policy::default();
-            redirect_policy.set_filter(Box::new(AllowCrossOrigin {}));
-
-            // CHECK THIS: https://oceancolor.gsfc.nasa.gov/data/download_methods/
-            let response = reqwest::ClientBuilder::new()
-                .redirect(redirect_policy)
-                .default_headers(headers)
-                .cookie_provider(cookie_provider.clone())
-                .build()?
-                .get(url)
-                .send()
-                .await?;
-
-            let fname = String::from(
-                response
-                    .url()
-                    .path_segments()
-                    .and_then(|segments| segments.last())
-                    .and_then(|name| if name.is_empty() { None } else { Some(name) })
-                    .unwrap_or("TERRA_MODIS.00000000T000000.L2.SST4.nc"),
-            );
-
-            let contents = response.bytes().await?;
-
-            // TODO: it's can be done in RAM but netcdf library doesn't have implementation for reading from memory
-            let tmppath = tmpdir.path().join(&fname);
-            std::fs::write(&tmppath, contents)?;
-            let file = netcdf::open(&tmppath)?;
-
-            let sst4 = GeophysicalData::load_netcdf(&file, "sst4").unwrap(); // TODO: make it without unwrap
-
-            result.push(sst4.generate_image());
+        if names.len() == 1 && names[0] == "No Results Found" {
+            return Ok(Vec::new());
         }
 
-        Ok(result)
+        return Ok(names
+            .into_iter()
+            .map(|name| SearchItem::new(name))
+            .collect::<Vec<_>>());
+    }
+
+    async fn get(
+        &self,
+        item: SearchItem,
+    ) -> Result<ImageBuffer<image::Rgba<u8>, Vec<u8>>, Box<dyn std::error::Error>> {
+        // todo migrate to tempfile
+        let tmpdir = tempfile::tempdir()?;
+
+        let cookie_provider = Arc::new(reqwest::cookie::Jar::default());
+
+        let mut authorization_header_value = reqwest::header::HeaderValue::from_str(&format!(
+            "Basic {}",
+            self.oceancolor_authorization
+        ))?;
+        authorization_header_value.set_sensitive(true);
+
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(reqwest::header::AUTHORIZATION, authorization_header_value);
+
+        let mut redirect_policy = reqwest::redirect::Policy::default();
+        redirect_policy.set_filter(Box::new(AllowCrossOrigin {}));
+
+        let getfile_baseurl =
+            reqwest::Url::from_str("https://oceandata.sci.gsfc.nasa.gov/cgi/getfile/")?;
+
+        // CHECK THIS: https://oceancolor.gsfc.nasa.gov/data/download_methods/
+        let response = reqwest::ClientBuilder::new()
+            .redirect(redirect_policy)
+            .default_headers(headers)
+            .cookie_provider(cookie_provider.clone())
+            .build()?
+            .get(getfile_baseurl.join(&item.0)?)
+            .send()
+            .await?;
+
+        let fname = String::from(
+            response
+                .url()
+                .path_segments()
+                .and_then(|segments| segments.last())
+                .and_then(|name| if name.is_empty() { None } else { Some(name) })
+                .ok_or(GeophysicalDataError::FilenameExtractionFromUrlFailed(
+                    response.url().clone(),
+                ))?,
+        );
+
+        let contents = response.bytes().await?;
+
+        // TODO: it's can be done in RAM but netcdf library doesn't have implementation for reading from memory (https://docs.unidata.ucar.edu/netcdf-c/4.8.1/md_inmemory.html)
+        let tmppath = tmpdir.path().join(&fname);
+        std::fs::write(&tmppath, contents)?;
+        let file = netcdf::open(&tmppath)?;
+
+        let sst4 = GeophysicalData::load_netcdf(&file, "sst4")?;
+
+        return Ok(sst4.generate_image());
     }
 }

@@ -9,11 +9,12 @@ pub(crate) mod service {
 
 pub(crate) mod routes;
 
+use chrono::{prelude::*, Duration};
 use diesel_async::pooled_connection::deadpool::Pool;
 use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 use dotenv::dotenv;
 use model::satellite::Satellite;
-use service::oceancolor::OceanColorServiceDefault;
+use service::oceancolor::{OceanColorService, OceanColorServiceDefault};
 use service::satellite::SatelliteServiceMock;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -44,10 +45,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let oceancolor_service = OceanColorServiceDefault::new(oceancolor_authorization);
 
-    // let images = oceancolor_service.get_last_24hours().await?;
+    // let items = oceancolor_service
+    //     .search(
+    //         Utc::now()
+    //             .checked_sub_signed(Duration::hours(8))
+    //             .unwrap()
+    //             .naive_utc(),
+    //         Utc::now().naive_utc(),
+    //     )
+    //     .await?;
+
+    // println!("Num items: {}", items.len());
+
+    // let images =
+    //     futures::future::join_all(items.into_iter().map(|item| oceancolor_service.get(item))).await;
+
     // let mut i = 0;
     // for image in images {
-    //     image.save(format!("images/{}.png", i))?;
+    //     image?.save(format!("images/{}.png", i))?;
     //     i += 1;
     // }
 
