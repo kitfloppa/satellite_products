@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use axum::Router;
 use diesel_async::pooled_connection::AsyncDieselConnectionManager;
+use tokio_cron_scheduler::JobScheduler;
 
 pub type SatelliteService = Arc<dyn crate::service::satellite::SatelliteService + Send + Sync>;
 pub type OceanColorService = Arc<dyn crate::service::oceancolor::OceanColorService + Send + Sync>;
@@ -11,6 +12,7 @@ pub struct AppContext {
         deadpool::managed::Pool<AsyncDieselConnectionManager<diesel_async::AsyncPgConnection>>,
     pub satellite_service: SatelliteService,
     pub oceancolor_service: OceanColorService,
+    pub job_scheduler: JobScheduler,
 }
 
 mod satellite {

@@ -3,6 +3,8 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 use axum::async_trait;
 use chrono::prelude::*;
 use image::ImageBuffer;
+use log::{error, info, trace};
+use tokio_cron_scheduler::Job;
 
 pub struct SearchItem(String);
 
@@ -38,11 +40,95 @@ pub struct OceanColorServiceDefault {
     oceancolor_authorization: String,
 }
 
+struct JobState {
+    last_date: Option<NaiveDateTime>,
+}
+
+impl JobState {
+    fn new() -> JobState {
+        return JobState { last_date: None };
+    }
+}
+
+pub struct OceanColorJobSettings {
+    pub time_step: std::time::Duration,
+    pub not_found_duration: chrono::Duration,
+}
+
 impl OceanColorServiceDefault {
     pub fn new(oceancolor_authorization: String) -> OceanColorServiceDefault {
         OceanColorServiceDefault {
             oceancolor_authorization,
         }
+    }
+
+    // TODO i think it can be located in trait
+    pub fn create_job(
+        self: &Arc<Self>,
+        settings: OceanColorJobSettings,
+    ) -> Result<Job, Box<dyn std::error::Error>> {
+        let oceancolor_service = self.clone();
+        let job_state = Arc::new(tokio::sync::Mutex::new(JobState::new()));
+
+        let job = Job::new_repeated_async(settings.time_step, move |_uuid, _job_scheduler| {
+            let oceancolor_service = oceancolor_service.clone();
+            let job_state = job_state.clone();
+
+            return Box::pin(async move {
+                let edate = Utc::now().naive_utc();
+
+                let sdate = {
+                    let mut job_state = job_state.lock().await;
+
+                    let r = if let Some(last_date) = job_state.last_date {
+                        last_date
+                    } else {
+                        Utc::now()
+                            .checked_sub_signed(settings.not_found_duration)
+                            .unwrap()
+                            .naive_utc()
+                    };
+
+                    job_state.last_date = Some(edate);
+
+                    r
+                };
+
+                let result_items = oceancolor_service.search(sdate, edate).await.ok();
+                if let Some(items) = result_items {
+                    info!(
+                        "found {} items in range ({}; {})",
+                        items.len(),
+                        sdate,
+                        edate
+                    );
+
+                    let current_time = Utc::now();
+                    let subfolder = current_time.format("%Y%m%d").to_string();
+                    let fileset = current_time.format("%H%M%S").to_string();
+                    let base_path = format!("images/{}", subfolder);
+                    if let Err(err) = std::fs::create_dir_all(&base_path) {
+                        error!("failed to create all subdirs in path, because: {}", err);
+                        return;
+                    }
+
+                    for (idx, item) in items.into_iter().enumerate() {
+                        if let Ok(img) = oceancolor_service.get(item).await {
+                            let img_path = format!("{}/{}_{}.png", base_path, fileset, idx);
+                            if let Err(err) = img.save(img_path) {
+                                error!("failed to save image: {}", err);
+                            }
+
+                            // else TODO: add record to database about this image or call generic function from other service for saving
+                        }
+                    }
+                } else {
+                    error!("search failedin range ({}; {})!", sdate, edate);
+                }
+            });
+        })?;
+
+        return Ok(job);
     }
 }
 
@@ -129,7 +215,7 @@ impl GeophysicalData {
             }
         }
 
-        println!("[{}] Valid pixels: {}", name, valid_pixels);
+        trace!("[{}] Valid pixels: {}", name, valid_pixels);
 
         return Ok(GeophysicalData {
             name: String::from(name),

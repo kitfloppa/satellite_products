@@ -17,3 +17,5 @@ Cargo.lock
 celestrak.txt
 
 .env
+
+images/

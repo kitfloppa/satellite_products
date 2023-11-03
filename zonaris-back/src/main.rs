@@ -9,15 +9,15 @@ pub(crate) mod service {
 
 pub(crate) mod routes;
 
-use chrono::{prelude::*, Duration};
 use diesel_async::pooled_connection::deadpool::Pool;
 use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 use dotenv::dotenv;
 use model::satellite::Satellite;
-use service::oceancolor::{OceanColorService, OceanColorServiceDefault};
+use service::oceancolor::{OceanColorJobSettings, OceanColorServiceDefault};
 use service::satellite::SatelliteServiceMock;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio_cron_scheduler::JobScheduler;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -26,7 +26,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let database_connection_url = std::env::var("DATABASE_URL")?;
     let server_ip = std::env::var("SERVER_IP")?;
+
     let oceancolor_authorization = std::env::var("OCEANCOLOR_AUTHORIZATION")?;
+    let oceancolor_job_timestep = std::env::var("OCEANCOLOR_JOB_TIMESTEP")?.parse::<u64>()?;
+    let oceancolor_job_notfound = std::env::var("OCEANCOLOR_JOB_NOTFOUND")?.parse::<i64>()?;
+
+    let job_scheduler = JobScheduler::new().await?;
 
     let config = AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(
         database_connection_url,
@@ -43,33 +48,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let satellite_serivce = SatelliteServiceMock::new(tles);
 
-    let oceancolor_service = OceanColorServiceDefault::new(oceancolor_authorization);
+    let oceancolor_service = Arc::new(OceanColorServiceDefault::new(oceancolor_authorization));
+    let oceancolor_job = oceancolor_service.create_job(OceanColorJobSettings {
+        time_step: std::time::Duration::from_secs(oceancolor_job_timestep),
+        not_found_duration: chrono::Duration::seconds(oceancolor_job_notfound),
+    })?;
+    job_scheduler.add(oceancolor_job).await?;
 
-    // let items = oceancolor_service
-    //     .search(
-    //         Utc::now()
-    //             .checked_sub_signed(Duration::hours(8))
-    //             .unwrap()
-    //             .naive_utc(),
-    //         Utc::now().naive_utc(),
-    //     )
-    //     .await?;
-
-    // println!("Num items: {}", items.len());
-
-    // let images =
-    //     futures::future::join_all(items.into_iter().map(|item| oceancolor_service.get(item))).await;
-
-    // let mut i = 0;
-    // for image in images {
-    //     image?.save(format!("images/{}.png", i))?;
-    //     i += 1;
-    // }
+    job_scheduler.start().await?;
 
     let app_context = routes::AppContext {
         pool,
         satellite_service: Arc::new(satellite_serivce),
-        oceancolor_service: Arc::new(oceancolor_service),
+        oceancolor_service: oceancolor_service,
+        job_scheduler,
     };
     let app = routes::router(app_context);
 
