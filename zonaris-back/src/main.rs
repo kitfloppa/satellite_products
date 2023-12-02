@@ -1,22 +1,22 @@
-pub(crate) mod model;
-pub(crate) mod repository;
-pub(crate) mod routes;
-pub(crate) mod service;
-
-#[cfg(feature = "diesel")]
-use diesel_async::pooled_connection::deadpool::Pool;
-#[cfg(feature = "diesel")]
-use diesel_async::pooled_connection::AsyncDieselConnectionManager;
+pub mod controller;
+pub mod persistence;
+pub mod routes;
+pub mod service;
 
 use dotenv::dotenv;
-use model::satellite::Satellite;
-use model::satellite_data::SatelliteData;
-use repository::InMemoryRepository;
+use persistence::model::satellite::Satellite;
+use persistence::model::satellite_data::SatelliteData;
+use persistence::repository::InMemoryRepository;
 use service::oceancolor::{OceanColorJobSettings, OceanColorServiceDefault};
 use service::satellite::SatelliteServiceMock;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio_cron_scheduler::JobScheduler;
+
+#[cfg(feature = "diesel")]
+use diesel_async::pooled_connection::deadpool::Pool;
+#[cfg(feature = "diesel")]
+use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -61,7 +61,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     >::new()));
 
     // construct services
-    let satellite_serivce = SatelliteServiceMock::new(satellite_repository.clone());
+    let satellite_service = Arc::new(SatelliteServiceMock::new(satellite_repository.clone()));
 
     let oceancolor_service = Arc::new(OceanColorServiceDefault::new(
         oceancolor_authorization,
@@ -80,16 +80,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     job_scheduler.start().await?;
 
     // startup application
-    let app_context = routes::AppContext {
+    let app_context = Arc::new(routes::AppContext {
         #[cfg(feature = "diesel")]
         pool,
-        satellite_service: Arc::new(satellite_serivce),
+        satellite_service,
         oceancolor_service,
         satellite_repository,
         satellite_data_repository,
         job_scheduler,
-    };
-    let app = routes::router(app_context);
+    });
+    let app = routes::create_router(app_context);
 
     let addr = server_ip.parse::<SocketAddr>()?;
     axum::Server::bind(&addr)

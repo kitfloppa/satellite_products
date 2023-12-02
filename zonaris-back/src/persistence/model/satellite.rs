@@ -1,4 +1,4 @@
-use crate::repository::{HasId, Id};
+use crate::persistence::repository::{HasId, Id};
 use serde::Serialize;
 
 #[derive(Clone, Serialize)]

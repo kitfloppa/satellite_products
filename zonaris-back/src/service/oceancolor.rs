@@ -6,7 +6,7 @@ use image::ImageBuffer;
 use log::{error, info, trace};
 use tokio_cron_scheduler::Job;
 
-use crate::{model::satellite_data::SatelliteData, routes::SatelliteDataRepository};
+use crate::persistence::{model::satellite_data::SatelliteData, SatelliteDataRepository};
 
 pub struct SearchItem(String);
 

@@ -1,4 +1,4 @@
-use crate::repository::{HasId, Id};
+use crate::persistence::repository::{HasId, Id};
 
 #[derive(Clone)]
 pub struct SatelliteData {

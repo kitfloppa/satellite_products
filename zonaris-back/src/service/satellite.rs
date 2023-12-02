@@ -1,6 +1,6 @@
 use axum::async_trait;
 
-use crate::{model::satellite::Satellite, routes::SatelliteRepository};
+use crate::persistence::{model::satellite::Satellite, SatelliteRepository};
 
 #[async_trait]
 pub trait SatelliteService {
