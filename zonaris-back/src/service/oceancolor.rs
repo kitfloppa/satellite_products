@@ -8,6 +8,8 @@ use tokio_cron_scheduler::Job;
 
 use crate::persistence::{model::satellite_data::SatelliteData, SatelliteDataRepository};
 
+use super::SatelliteDataService;
+
 pub struct SearchItem(String);
 
 impl SearchItem {
@@ -40,7 +42,7 @@ pub trait OceanColorService {
 
 pub struct OceanColorServiceDefault {
     oceancolor_authorization: String,
-    satellite_data_repository: SatelliteDataRepository,
+    satellite_data_service: SatelliteDataService,
 }
 
 struct JobState {
@@ -61,11 +63,11 @@ pub struct OceanColorJobSettings {
 impl OceanColorServiceDefault {
     pub fn new(
         oceancolor_authorization: String,
-        satellite_data_repository: SatelliteDataRepository,
+        satellite_data_service: SatelliteDataService,
     ) -> OceanColorServiceDefault {
         return OceanColorServiceDefault {
             oceancolor_authorization,
-            satellite_data_repository,
+            satellite_data_service,
         };
     }
 
@@ -126,16 +128,19 @@ impl OceanColorServiceDefault {
                                 error!("failed to save image: {}", err);
                             } else {
                                 // TODO: satellite_id should be known
-                                // TODO: create and use satellite_data_service instead of repository
-                                let mut lock =
-                                    oceancolor_service.satellite_data_repository.write().await;
                                 let satellite_data = SatelliteData::new(0, img_path);
-                                lock.add(satellite_data).await;
+                                if !oceancolor_service
+                                    .satellite_data_service
+                                    .add_data(satellite_data)
+                                    .await
+                                {
+                                    error!("failed to add new data");
+                                }
                             }
                         }
                     }
                 } else {
-                    error!("search failedin range ({}; {})!", sdate, edate);
+                    error!("search failed in range ({}; {})!", sdate, edate);
                 }
             });
         })?;

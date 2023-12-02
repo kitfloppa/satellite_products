@@ -6,6 +6,7 @@ use crate::persistence::{
 
 #[async_trait]
 pub trait SatelliteDataService {
+    async fn add_data(&self, data: SatelliteData) -> bool;
     async fn get_by_satellite_id(&self, id: Id) -> Vec<SatelliteData>;
 }
 
@@ -23,6 +24,11 @@ impl SatelliteDataServiceDefault {
 
 #[async_trait]
 impl SatelliteDataService for SatelliteDataServiceDefault {
+    async fn add_data(&self, data: SatelliteData) -> bool {
+        let mut satellite_data_repository = self.satellite_data_repository.write().await;
+        return satellite_data_repository.add(data).await;
+    }
+
     async fn get_by_satellite_id(&self, satellite_id: Id) -> Vec<SatelliteData> {
         let satellite_data_repository = self.satellite_data_repository.read().await;
         // TODO: it's should be done on repository level and repository should give public api for this

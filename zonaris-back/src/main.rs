@@ -72,7 +72,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let oceancolor_service = Arc::new(OceanColorServiceDefault::new(
         oceancolor_authorization,
-        satellite_data_repository.clone(),
+        satellite_data_service.clone(),
     ));
 
     // setup job scheduler
