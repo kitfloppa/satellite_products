@@ -6,6 +6,8 @@ use image::ImageBuffer;
 use log::{error, info, trace};
 use tokio_cron_scheduler::Job;
 
+use crate::{model::satellite_data::SatelliteData, routes::SatelliteDataRepository};
+
 pub struct SearchItem(String);
 
 impl SearchItem {
@@ -28,16 +30,17 @@ pub trait OceanColorService {
         &self,
         sdate: NaiveDateTime,
         edate: NaiveDateTime,
-    ) -> Result<Vec<SearchItem>, Box<dyn std::error::Error>>;
+    ) -> Result<Vec<SearchItem>, Box<dyn std::error::Error + Send + Sync>>;
 
     async fn get(
         &self,
         item: SearchItem,
-    ) -> Result<ImageBuffer<image::Rgba<u8>, Vec<u8>>, Box<dyn std::error::Error>>;
+    ) -> Result<ImageBuffer<image::Rgba<u8>, Vec<u8>>, Box<dyn std::error::Error + Send + Sync>>;
 }
 
 pub struct OceanColorServiceDefault {
     oceancolor_authorization: String,
+    satellite_data_repository: SatelliteDataRepository,
 }
 
 struct JobState {
@@ -56,10 +59,14 @@ pub struct OceanColorJobSettings {
 }
 
 impl OceanColorServiceDefault {
-    pub fn new(oceancolor_authorization: String) -> OceanColorServiceDefault {
-        OceanColorServiceDefault {
+    pub fn new(
+        oceancolor_authorization: String,
+        satellite_data_repository: SatelliteDataRepository,
+    ) -> OceanColorServiceDefault {
+        return OceanColorServiceDefault {
             oceancolor_authorization,
-        }
+            satellite_data_repository,
+        };
     }
 
     // TODO i think it can be located in trait
@@ -94,7 +101,7 @@ impl OceanColorServiceDefault {
                     r
                 };
 
-                let result_items = oceancolor_service.search(sdate, edate).await.ok();
+                let result_items = oceancolor_service.search(sdate, edate).await.ok(); // TODO it's very strange
                 if let Some(items) = result_items {
                     info!(
                         "found {} items in range ({}; {})",
@@ -115,11 +122,16 @@ impl OceanColorServiceDefault {
                     for (idx, item) in items.into_iter().enumerate() {
                         if let Ok(img) = oceancolor_service.get(item).await {
                             let img_path = format!("{}/{}_{}.png", base_path, fileset, idx);
-                            if let Err(err) = img.save(img_path) {
+                            if let Err(err) = img.save(&img_path) {
                                 error!("failed to save image: {}", err);
+                            } else {
+                                // TODO: satellite_id should be known
+                                // TODO: create and use satellite_data_service instead of repository
+                                let mut lock =
+                                    oceancolor_service.satellite_data_repository.write().await;
+                                let satellite_data = SatelliteData::new(0, img_path);
+                                lock.add(satellite_data).await;
                             }
-
-                            // else TODO: add record to database about this image or call generic function from other service for saving
                         }
                     }
                 } else {
@@ -308,7 +320,7 @@ impl OceanColorService for OceanColorServiceDefault {
         &self,
         sdate: NaiveDateTime,
         edate: NaiveDateTime,
-    ) -> Result<Vec<SearchItem>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<SearchItem>, Box<dyn std::error::Error + Send + Sync>> {
         let fmt = "%Y-%m-%d %H:%M:%S";
         let sdate = sdate.format(fmt).to_string();
         let edate = edate.format(fmt).to_string();
@@ -347,7 +359,8 @@ impl OceanColorService for OceanColorServiceDefault {
     async fn get(
         &self,
         item: SearchItem,
-    ) -> Result<ImageBuffer<image::Rgba<u8>, Vec<u8>>, Box<dyn std::error::Error>> {
+    ) -> Result<ImageBuffer<image::Rgba<u8>, Vec<u8>>, Box<dyn std::error::Error + Send + Sync>>
+    {
         // todo migrate to tempfile
         let tmpdir = tempfile::tempdir()?;
 

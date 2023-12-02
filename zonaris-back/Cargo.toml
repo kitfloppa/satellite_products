@@ -6,9 +6,6 @@ edition = "2021"
 [dependencies]
 axum = "0.6.20"
 tokio = { version = "1.32.0", features = ["full"] }
-diesel = "2.1.1"
-diesel-async = { version = "0.4.1", features = ["postgres", "deadpool"] }
-deadpool = "0.9.5"
 serde = { version = "1.0.188", features = ["derive"] }
 dotenv = "0.15.0"
 netcdf = { git = "https://github.com/georust/netcdf.git", features = ["static"] }
@@ -20,3 +17,11 @@ chrono = "0.4.31"
 futures = "0.3.29"
 tokio-cron-scheduler = "0.9.4"
 log = "0.4.20"
+async-trait = "0.1.74"
+
+diesel = { version = "2.1.1", optional = true }
+diesel-async = { version = "0.4.1", features = ["postgres", "deadpool"], optional = true }
+deadpool = { version = "0.9.5", optional = true }
+
+[features]
+diesel = ["dep:diesel", "dep:diesel-async", "dep:deadpool"]
