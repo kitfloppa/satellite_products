@@ -8,7 +8,7 @@ use tokio_cron_scheduler::JobScheduler;
 
 use crate::{
     persistence::{SatelliteDataRepository, SatelliteRepository},
-    service::{OceanColorService, SatelliteService},
+    service::{OceanColorService, SatelliteDataService, SatelliteService},
 };
 
 pub struct AppContext {
@@ -21,6 +21,7 @@ pub struct AppContext {
     pub satellite_data_repository: SatelliteDataRepository,
 
     pub satellite_service: SatelliteService,
+    pub satellite_data_service: SatelliteDataService,
     pub oceancolor_service: OceanColorService,
 
     pub job_scheduler: JobScheduler,
@@ -28,6 +29,12 @@ pub struct AppContext {
 
 pub fn create_router(ctx: Arc<AppContext>) -> Router {
     let satellite_router = crate::controller::satellite::create_router(ctx.clone());
+    let satellite_data_router = crate::controller::satellite_data::create_router(ctx.clone());
 
-    return Router::new().nest(crate::controller::satellite::PATH, satellite_router);
+    return Router::new()
+        .nest(crate::controller::satellite::PATH, satellite_router)
+        .nest(
+            crate::controller::satellite_data::PATH,
+            satellite_data_router,
+        );
 }

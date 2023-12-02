@@ -117,7 +117,7 @@ where
         return self.data.get(&id).cloned();
     }
 
-    async fn add(&mut self, entity: T) -> bool {
+    async fn add(&mut self, mut entity: T) -> bool {
         let key = if let Some(id) = entity.get_id() {
             id
         } else {
@@ -128,6 +128,7 @@ where
             return false;
         }
 
+        entity.set_id(key);
         self.data.insert(key, entity);
         return true;
     }

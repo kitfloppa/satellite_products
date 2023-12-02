@@ -1,7 +1,9 @@
 pub mod controller;
+pub mod dto;
 pub mod persistence;
 pub mod routes;
 pub mod service;
+pub mod utils;
 
 use dotenv::dotenv;
 use persistence::model::satellite::Satellite;
@@ -9,6 +11,7 @@ use persistence::model::satellite_data::SatelliteData;
 use persistence::repository::InMemoryRepository;
 use service::oceancolor::{OceanColorJobSettings, OceanColorServiceDefault};
 use service::satellite::SatelliteServiceMock;
+use service::satellite_data::SatelliteDataServiceDefault;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio_cron_scheduler::JobScheduler;
@@ -63,6 +66,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // construct services
     let satellite_service = Arc::new(SatelliteServiceMock::new(satellite_repository.clone()));
 
+    let satellite_data_service = Arc::new(SatelliteDataServiceDefault::new(
+        satellite_data_repository.clone(),
+    ));
+
     let oceancolor_service = Arc::new(OceanColorServiceDefault::new(
         oceancolor_authorization,
         satellite_data_repository.clone(),
@@ -86,6 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         satellite_service,
         oceancolor_service,
         satellite_repository,
+        satellite_data_service,
         satellite_data_repository,
         job_scheduler,
     });

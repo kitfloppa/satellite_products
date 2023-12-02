@@ -1,10 +1,15 @@
+use serde::Serialize;
+
 use crate::persistence::repository::{HasId, Id};
 
-#[derive(Clone)]
-pub struct SatelliteData {
-    id: Option<Id>,
-    satellite_id: i32,
-    path: String,
+crate::pub_fields! {
+    #[derive(Clone)]
+    #[derive(Serialize)]
+    struct SatelliteData {
+        id: Option<Id>,
+        satellite_id: i32,
+        path: String,
+    }
 }
 
 impl HasId for SatelliteData {
