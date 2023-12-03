@@ -19,6 +19,8 @@ use service::satellite::SatelliteServiceMock;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio_cron_scheduler::JobScheduler;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 #[cfg(feature = "diesel")]
 use diesel_async::pooled_connection::deadpool::Pool;
@@ -122,12 +124,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         oceancolor_mapping_repository,
         job_scheduler,
     });
-    let app = routes::create_router(app_context);
+
+    let app = routes::create_router(app_context)
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()));
 
     let addr = server_ip.parse::<SocketAddr>()?;
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await?;
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app).await?;
 
     Ok(())
 }
+
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        crate::controller::instrument_data::get_by_satellite_id,
+        // crate::controller::instrument_data::get_asset,
+        crate::controller::satellite::get_all,
+    ),
+    components(
+        schemas(
+            crate::dto::instrument_data::InstrumentDataResponse,
+            crate::dto::satellite::SatelliteResponse
+        )
+    )
+)]
+struct ApiDoc;
