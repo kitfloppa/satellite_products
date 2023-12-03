@@ -5,6 +5,7 @@ use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 
 use axum::Router;
 use tokio_cron_scheduler::JobScheduler;
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
     persistence::{

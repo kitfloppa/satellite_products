@@ -3,12 +3,26 @@ use std::sync::Arc;
 use axum::Router;
 use axum::{extract::State, Json};
 
-use crate::persistence::model::satellite::Satellite;
+use crate::dto::satellite::SatelliteResponse;
 
 use crate::routes::AppContext;
 
-async fn get_all(ctx: State<Arc<AppContext>>) -> Json<Vec<Satellite>> {
-    Json(ctx.satellite_service.get_all().await)
+#[utoipa::path(
+    get,
+    path = "/satellite/all",
+    responses(
+        (status = 200, body=[SatelliteResponse])
+    )
+)]
+async fn get_all(ctx: State<Arc<AppContext>>) -> Json<Vec<SatelliteResponse>> {
+    Json(
+        ctx.satellite_service
+            .get_all()
+            .await
+            .into_iter()
+            .map(|it| SatelliteResponse::from(it))
+            .collect(),
+    )
 }
 
 pub const PATH: &str = "/satellite";

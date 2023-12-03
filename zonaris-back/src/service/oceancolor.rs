@@ -332,7 +332,7 @@ struct AllowCrossOrigin {}
 impl reqwest::redirect::Filter for AllowCrossOrigin {
     fn handle_sensitive_headers(
         &self,
-        headers: &mut axum::http::HeaderMap,
+        headers: &mut reqwest::header::HeaderMap,
         next: &reqwest::Url,
         previous: &[reqwest::Url],
     ) {

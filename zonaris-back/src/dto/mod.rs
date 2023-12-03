@@ -1,1 +1,2 @@
-pub mod satellite_data;
+pub mod instrument_data;
+pub mod satellite;

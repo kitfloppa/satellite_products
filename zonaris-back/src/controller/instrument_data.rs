@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use axum::body::StreamBody;
 use axum::extract::{Path, Query};
 use axum::http::header::{self, HeaderMap};
 use axum::http::HeaderValue;
@@ -10,21 +9,39 @@ use axum::Router;
 use axum::{extract::State, Json};
 use tokio_util::io::ReaderStream;
 
-use crate::dto::satellite_data::GetBySatelliteIdRequest;
-use crate::persistence::model::instrument_data::InstrumentData;
+use crate::dto::instrument_data::{GetBySatelliteIdRequest, InstrumentDataResponse};
 use crate::routes::AppContext;
 
+#[utoipa::path(
+    get,
+    path = "/data/get",
+    params(GetBySatelliteIdRequest),
+    responses(
+        (status = 200, body=[InstrumentDataResponse])
+    )
+)]
 async fn get_by_satellite_id(
     ctx: State<Arc<AppContext>>,
     request: Query<GetBySatelliteIdRequest>,
-) -> Json<Vec<InstrumentData>> {
+) -> Json<Vec<InstrumentDataResponse>> {
     Json(
         ctx.instrument_data_service
             .get_by_satellite_id(request.id)
-            .await,
+            .await
+            .into_iter()
+            .map(|it| InstrumentDataResponse::from(it))
+            .collect(),
     )
 }
 
+// TODO: https://github.com/OAI/OpenAPI-Specification/issues/2653
+// #[utoipa::path(
+//     get,
+//     path = "/data/assets/{path}",
+//     params(
+//         ("path" = String, Path, allow_reserved)
+//     )
+// )]
 async fn get_asset(Path(path): Path<String>, _ctx: State<Arc<AppContext>>) -> impl IntoResponse {
     let file = match tokio::fs::File::open(&path).await {
         Ok(file) => file,
@@ -37,7 +54,7 @@ async fn get_asset(Path(path): Path<String>, _ctx: State<Arc<AppContext>>) -> im
     };
 
     let stream = ReaderStream::new(file);
-    let body = StreamBody::new(stream);
+    let body = axum::body::Body::from_stream(stream);
 
     let mut headers = HeaderMap::new();
     headers.insert(

@@ -1,12 +1,17 @@
-use crate::persistence::repository::{HasId, Id};
+use crate::{
+    persistence::repository::{HasId, Id},
+    pub_fields,
+};
 use serde::Serialize;
 
-#[derive(Clone, Serialize)]
-pub struct Satellite {
-    id: Option<Id>,
-    name: String,
-    tle1: String,
-    tle2: String,
+pub_fields! {
+    #[derive(Clone, Serialize)]
+    struct Satellite {
+        id: Option<Id>,
+        name: String,
+        tle1: String,
+        tle2: String,
+    }
 }
 
 impl HasId for Satellite {
