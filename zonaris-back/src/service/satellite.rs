@@ -1,6 +1,6 @@
 use axum::async_trait;
 
-use crate::persistence::{model::satellite::Satellite, SatelliteRepository};
+use crate::persistence::{model::satellite::Satellite, Repository};
 
 #[async_trait]
 pub trait SatelliteService {
@@ -8,11 +8,11 @@ pub trait SatelliteService {
 }
 
 pub struct SatelliteServiceMock {
-    satellite_repository: SatelliteRepository,
+    satellite_repository: Repository<Satellite>,
 }
 
 impl SatelliteServiceMock {
-    pub fn new(satellite_repository: SatelliteRepository) -> SatelliteServiceMock {
+    pub fn new(satellite_repository: Repository<Satellite>) -> SatelliteServiceMock {
         SatelliteServiceMock {
             satellite_repository,
         }

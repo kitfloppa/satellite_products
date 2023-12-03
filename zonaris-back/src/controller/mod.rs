@@ -1,5 +1,5 @@
 pub mod satellite;
-pub mod satellite_data;
+pub mod instrument_data;
 
 // TODO: actually it's a little bit tricky to create controller as struct
 // and i don't see any pros from doing it, because AppContext contains

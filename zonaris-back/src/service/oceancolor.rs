@@ -6,9 +6,12 @@ use image::ImageBuffer;
 use log::{error, info, trace};
 use tokio_cron_scheduler::Job;
 
-use crate::persistence::{model::satellite_data::SatelliteData, SatelliteDataRepository};
+use crate::persistence::{
+    model::{instrument_data::InstrumentData, oceancolor::OceanColorMapping},
+    Repository,
+};
 
-use super::SatelliteDataService;
+use super::InstrumentDataService;
 
 pub struct SearchItem(String);
 
@@ -32,6 +35,7 @@ pub trait OceanColorService {
         &self,
         sdate: NaiveDateTime,
         edate: NaiveDateTime,
+        mapping: &OceanColorMapping,
     ) -> Result<Vec<SearchItem>, Box<dyn std::error::Error + Send + Sync>>;
 
     async fn get(
@@ -42,7 +46,8 @@ pub trait OceanColorService {
 
 pub struct OceanColorServiceDefault {
     oceancolor_authorization: String,
-    satellite_data_service: SatelliteDataService,
+    oceancolor_mapping_repository: Repository<OceanColorMapping>,
+    instrument_data_service: InstrumentDataService,
 }
 
 struct JobState {
@@ -63,15 +68,18 @@ pub struct OceanColorJobSettings {
 impl OceanColorServiceDefault {
     pub fn new(
         oceancolor_authorization: String,
-        satellite_data_service: SatelliteDataService,
+        oceancolor_mapping_repository: Repository<OceanColorMapping>,
+        instrument_data_service: InstrumentDataService,
     ) -> OceanColorServiceDefault {
         return OceanColorServiceDefault {
             oceancolor_authorization,
-            satellite_data_service,
+            oceancolor_mapping_repository,
+            instrument_data_service,
         };
     }
 
-    // TODO i think it can be located in trait
+    // TODO: refactor this ...
+    // TODO: i think it can be located in trait
     pub fn create_job(
         self: &Arc<Self>,
         settings: OceanColorJobSettings,
@@ -103,44 +111,57 @@ impl OceanColorServiceDefault {
                     r
                 };
 
-                let result_items = oceancolor_service.search(sdate, edate).await.ok(); // TODO it's very strange
-                if let Some(items) = result_items {
-                    info!(
-                        "found {} items in range ({}; {})",
-                        items.len(),
-                        sdate,
-                        edate
-                    );
+                let mappings = {
+                    let lock = oceancolor_service
+                        .oceancolor_mapping_repository
+                        .read()
+                        .await;
 
-                    let current_time = Utc::now();
-                    let subfolder = current_time.format("%Y%m%d").to_string();
-                    let fileset = current_time.format("%H%M%S").to_string();
-                    let base_path = format!("images/{}", subfolder);
-                    if let Err(err) = std::fs::create_dir_all(&base_path) {
-                        error!("failed to create all subdirs in path, because: {}", err);
-                        return;
-                    }
+                    lock.get_all().await
+                };
 
-                    for (idx, item) in items.into_iter().enumerate() {
-                        if let Ok(img) = oceancolor_service.get(item).await {
-                            let img_path = format!("{}/{}_{}.png", base_path, fileset, idx);
-                            if let Err(err) = img.save(&img_path) {
-                                error!("failed to save image: {}", err);
-                            } else {
-                                // TODO: satellite_id should be known
-                                let satellite_data = SatelliteData::new(0, img_path);
-                                if !oceancolor_service
-                                    .satellite_data_service
-                                    .add_data(satellite_data)
-                                    .await
-                                {
-                                    error!("failed to add new data");
+                for mapping in mappings {
+                    let result_items = oceancolor_service.search(sdate, edate, &mapping).await.ok(); // TODO it's very strange
+                    if let Some(items) = result_items {
+                        info!(
+                            "found {} items in range ({}; {})",
+                            items.len(),
+                            sdate,
+                            edate
+                        );
+
+                        let current_time = Utc::now();
+                        let subfolder = current_time.format("%Y%m%d").to_string();
+                        let fileset = current_time.format("%H%M%S").to_string();
+                        let base_path = format!("images/{}", subfolder);
+                        if let Err(err) = std::fs::create_dir_all(&base_path) {
+                            error!("failed to create all subdirs in path, because: {}", err);
+                            return;
+                        }
+
+                        for (idx, item) in items.into_iter().enumerate() {
+                            if let Ok(img) = oceancolor_service.get(item).await {
+                                let img_path = format!("{}/{}_{}.png", base_path, fileset, idx);
+                                if let Err(err) = img.save(&img_path) {
+                                    error!("failed to save image: {}", err);
+                                } else {
+                                    let satellite_data = InstrumentData::new(
+                                        mapping.satellite_instrument_id,
+                                        img_path,
+                                    );
+                                    if !oceancolor_service
+                                        .instrument_data_service
+                                        .add_data(satellite_data)
+                                        .await
+                                    {
+                                        error!("failed to add new data");
+                                    }
                                 }
                             }
                         }
+                    } else {
+                        error!("search failed in range ({}; {})!", sdate, edate);
                     }
-                } else {
-                    error!("search failed in range ({}; {})!", sdate, edate);
                 }
             });
         })?;
@@ -325,15 +346,19 @@ impl OceanColorService for OceanColorServiceDefault {
         &self,
         sdate: NaiveDateTime,
         edate: NaiveDateTime,
+        mapping: &OceanColorMapping,
     ) -> Result<Vec<SearchItem>, Box<dyn std::error::Error + Send + Sync>> {
         let fmt = "%Y-%m-%d %H:%M:%S";
         let sdate = sdate.format(fmt).to_string();
         let edate = edate.format(fmt).to_string();
 
+        let sensor_id = mapping.sensor_id.to_string();
+        let dtid = mapping.data_id.to_string();
+
         let mut params = HashMap::new();
         params.insert("results_as_file", "1");
-        params.insert("sensor_id", "8");
-        params.insert("dtid", "1102");
+        params.insert("sensor_id", &sensor_id);
+        params.insert("dtid", &dtid);
         params.insert("sdate", &sdate);
         params.insert("edate", &edate);
         params.insert("subType", "1");

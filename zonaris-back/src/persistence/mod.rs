@@ -2,13 +2,21 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
-use self::model::{satellite::Satellite, satellite_data::SatelliteData};
+use self::repository::HasId;
 
 pub mod model;
 pub mod repository;
 
-pub type SatelliteRepository =
-    Arc<RwLock<dyn self::repository::Repository<Satellite> + Send + Sync>>;
+pub type Repository<T> = Arc<RwLock<dyn self::repository::Repository<T> + Send + Sync>>;
+pub type InMemoryRepository<T> = Arc<RwLock<self::repository::InMemoryRepository<T>>>;
 
-pub type SatelliteDataRepository =
-    Arc<RwLock<dyn self::repository::Repository<SatelliteData> + Send + Sync>>;
+pub fn create_inmemory_repository<T>() -> InMemoryRepository<T>
+where
+    T: HasId,
+    T: Clone,
+    T: Send + Sync,
+{
+    return Arc::new(tokio::sync::RwLock::new(
+        self::repository::InMemoryRepository::<T>::new(),
+    ));
+}

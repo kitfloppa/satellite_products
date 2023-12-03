@@ -5,14 +5,14 @@ use crate::persistence::repository::{HasId, Id};
 crate::pub_fields! {
     #[derive(Clone)]
     #[derive(Serialize)]
-    struct SatelliteData {
+    struct InstrumentData {
         id: Option<Id>,
-        satellite_id: i32,
+        satellite_instrument_id: i32, // reference SatelliteInstrument.id
         path: String,
     }
 }
 
-impl HasId for SatelliteData {
+impl HasId for InstrumentData {
     fn get_id(&self) -> Option<Id> {
         return self.id;
     }
@@ -22,11 +22,11 @@ impl HasId for SatelliteData {
     }
 }
 
-impl SatelliteData {
-    pub fn new(satellite_id: i32, path: String) -> SatelliteData {
-        return SatelliteData {
+impl InstrumentData {
+    pub fn new(satellite_instrument_id: i32, path: String) -> Self {
+        return Self {
             id: None,
-            satellite_id,
+            satellite_instrument_id,
             path,
         };
     }

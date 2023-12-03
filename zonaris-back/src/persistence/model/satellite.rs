@@ -20,8 +20,8 @@ impl HasId for Satellite {
 }
 
 impl Satellite {
-    pub fn new(name: &str, tle1: &str, tle2: &str) -> Satellite {
-        Satellite {
+    pub fn new(name: &str, tle1: &str, tle2: &str) -> Self {
+        Self {
             id: None,
             name: String::from(name),
             tle1: String::from(tle1),

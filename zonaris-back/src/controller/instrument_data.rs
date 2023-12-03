@@ -11,21 +11,21 @@ use axum::{extract::State, Json};
 use tokio_util::io::ReaderStream;
 
 use crate::dto::satellite_data::GetBySatelliteIdRequest;
-use crate::persistence::model::satellite_data::SatelliteData;
+use crate::persistence::model::instrument_data::InstrumentData;
 use crate::routes::AppContext;
 
 async fn get_by_satellite_id(
     ctx: State<Arc<AppContext>>,
     request: Query<GetBySatelliteIdRequest>,
-) -> Json<Vec<SatelliteData>> {
+) -> Json<Vec<InstrumentData>> {
     Json(
-        ctx.satellite_data_service
+        ctx.instrument_data_service
             .get_by_satellite_id(request.id)
             .await,
     )
 }
 
-async fn get_asset(Path(path): Path<String>, ctx: State<Arc<AppContext>>) -> impl IntoResponse {
+async fn get_asset(Path(path): Path<String>, _ctx: State<Arc<AppContext>>) -> impl IntoResponse {
     let file = match tokio::fs::File::open(&path).await {
         Ok(file) => file,
         Err(err) => {

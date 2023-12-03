@@ -6,12 +6,16 @@ pub mod service;
 pub mod utils;
 
 use dotenv::dotenv;
+use persistence::create_inmemory_repository;
+use persistence::model::instrument::Instrument;
+use persistence::model::instrument_data::InstrumentData;
+use persistence::model::oceancolor::OceanColorMapping;
 use persistence::model::satellite::Satellite;
-use persistence::model::satellite_data::SatelliteData;
-use persistence::repository::InMemoryRepository;
+use persistence::model::satellite_instrument::SatelliteInstrument;
+use persistence::repository::Repository;
+use service::instrument_data::InstrumentDataServiceDefault;
 use service::oceancolor::{OceanColorJobSettings, OceanColorServiceDefault};
 use service::satellite::SatelliteServiceMock;
-use service::satellite_data::SatelliteDataServiceDefault;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio_cron_scheduler::JobScheduler;
@@ -47,32 +51,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // construct repositories
-    let tles = std::fs::read_to_string("celestrak.txt")
-        .expect("failed to load celestrak data")
-        .lines()
-        .collect::<Vec<_>>()
-        .chunks_exact(3)
-        .map(|slice| Satellite::new(slice[0], slice[1], slice[2]))
-        .collect::<Vec<_>>();
+    let satellite_repository = create_inmemory_repository::<Satellite>();
+    let instrument_repository = create_inmemory_repository::<Instrument>();
+    let satellite_instrument_repository = create_inmemory_repository::<SatelliteInstrument>();
+    let instrument_data_repository = create_inmemory_repository::<InstrumentData>();
+    let oceancolor_mapping_repository = create_inmemory_repository::<OceanColorMapping>();
 
-    let satellite_repository = Arc::new(tokio::sync::RwLock::new(
-        InMemoryRepository::<Satellite>::from(tles),
-    ));
+    // add test data
+    {
+        let mut lock = satellite_repository.write().await;
+        lock.add(Satellite::new(
+            "TERRA",
+            "1 25994U 99068A   23336.53168247  .00001150  00000+0  25187-3 0  9996",
+            "2 25994  98.0761  40.6034 0000638 235.8264 235.6779 14.59469347274213",
+        ))
+        .await;
+    }
 
-    let satellite_data_repository = Arc::new(tokio::sync::RwLock::new(InMemoryRepository::<
-        SatelliteData,
-    >::new()));
+    {
+        let mut lock = instrument_repository.write().await;
+        lock.add(Instrument::new("MODIS")).await;
+    }
+
+    {
+        let mut lock = satellite_instrument_repository.write().await;
+        lock.add(SatelliteInstrument::new(0, 0)).await; // relax relax just for test
+    }
+
+    {
+        let mut lock = oceancolor_mapping_repository.write().await;
+        lock.add(OceanColorMapping::new(0, 8, 1102)).await; // relax relax just for test
+    }
 
     // construct services
     let satellite_service = Arc::new(SatelliteServiceMock::new(satellite_repository.clone()));
 
-    let satellite_data_service = Arc::new(SatelliteDataServiceDefault::new(
-        satellite_data_repository.clone(),
+    let instrument_data_service = Arc::new(InstrumentDataServiceDefault::new(
+        satellite_instrument_repository.clone(),
+        instrument_data_repository.clone(),
     ));
 
     let oceancolor_service = Arc::new(OceanColorServiceDefault::new(
         oceancolor_authorization,
-        satellite_data_service.clone(),
+        oceancolor_mapping_repository.clone(),
+        instrument_data_service.clone(),
     ));
 
     // setup job scheduler
@@ -93,8 +115,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         satellite_service,
         oceancolor_service,
         satellite_repository,
-        satellite_data_service,
-        satellite_data_repository,
+        instrument_repository,
+        satellite_instrument_repository,
+        instrument_data_service,
+        instrument_data_repository,
+        oceancolor_mapping_repository,
         job_scheduler,
     });
     let app = routes::create_router(app_context);
