@@ -1,32 +1,50 @@
 use std::sync::Arc;
 
-use axum::Router;
+#[cfg(feature = "diesel")]
 use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 
-pub type SatelliteService = Arc<dyn crate::service::satellite::SatelliteService + Send + Sync>;
+use axum::Router;
+use tokio_cron_scheduler::JobScheduler;
+
+use crate::{
+    persistence::{
+        model::{
+            instrument::Instrument, instrument_data::InstrumentData, oceancolor::OceanColorMapping,
+            satellite::Satellite, satellite_instrument::SatelliteInstrument,
+        },
+        Repository,
+    },
+    service::{InstrumentDataService, OceanColorService, SatelliteService},
+};
 
 pub struct AppContext {
-    pub pool:
+    #[cfg(feature = "diesel")]
+    pub pool: tokio::sync::Mutex<
         deadpool::managed::Pool<AsyncDieselConnectionManager<diesel_async::AsyncPgConnection>>,
+    >,
+
+    pub satellite_repository: Repository<Satellite>,
+    pub instrument_repository: Repository<Instrument>,
+    pub satellite_instrument_repository: Repository<SatelliteInstrument>,
+    pub instrument_data_repository: Repository<InstrumentData>,
+
+    pub oceancolor_mapping_repository: Repository<OceanColorMapping>,
+
     pub satellite_service: SatelliteService,
+    pub instrument_data_service: InstrumentDataService,
+    pub oceancolor_service: OceanColorService,
+
+    pub job_scheduler: JobScheduler,
 }
 
-mod satellite {
-    use std::sync::Arc;
+pub fn create_router(ctx: Arc<AppContext>) -> Router {
+    let satellite_router = crate::controller::satellite::create_router(ctx.clone());
+    let satellite_data_router = crate::controller::instrument_data::create_router(ctx.clone());
 
-    use axum::{extract::State, Json};
-
-    use crate::model::satellite::Satellite;
-
-    use super::AppContext;
-
-    pub async fn get_all(ctx: State<Arc<AppContext>>) -> Json<Vec<Satellite>> {
-        Json(ctx.satellite_service.get_all().await)
-    }
-}
-
-pub fn router(ctx: AppContext) -> Router {
-    Router::new()
-        .route("/satellite/all", axum::routing::get(satellite::get_all))
-        .with_state(Arc::new(ctx))
+    return Router::new()
+        .nest(crate::controller::satellite::PATH, satellite_router)
+        .nest(
+            crate::controller::instrument_data::PATH,
+            satellite_data_router,
+        );
 }

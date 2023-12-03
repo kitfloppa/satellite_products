@@ -1,6 +1,6 @@
 use axum::async_trait;
 
-use crate::model::satellite::Satellite;
+use crate::persistence::{model::satellite::Satellite, Repository};
 
 #[async_trait]
 pub trait SatelliteService {
@@ -8,18 +8,21 @@ pub trait SatelliteService {
 }
 
 pub struct SatelliteServiceMock {
-    satellites: Vec<Satellite>,
+    satellite_repository: Repository<Satellite>,
 }
 
 impl SatelliteServiceMock {
-    pub fn new(satellites: Vec<Satellite>) -> SatelliteServiceMock {
-        SatelliteServiceMock { satellites }
+    pub fn new(satellite_repository: Repository<Satellite>) -> SatelliteServiceMock {
+        SatelliteServiceMock {
+            satellite_repository,
+        }
     }
 }
 
 #[async_trait]
 impl SatelliteService for SatelliteServiceMock {
     async fn get_all(&self) -> Vec<Satellite> {
-        return self.satellites.to_vec();
+        let satellite_repository = self.satellite_repository.read().await;
+        return satellite_repository.get_all().await;
     }
 }
