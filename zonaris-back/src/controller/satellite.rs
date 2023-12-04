@@ -25,10 +25,8 @@ async fn get_all(ctx: State<Arc<AppContext>>) -> Json<Vec<SatelliteResponse>> {
     )
 }
 
-pub const PATH: &str = "/satellite";
-
 pub fn create_router(ctx: Arc<AppContext>) -> Router {
     return Router::new()
-        .route("/all", axum::routing::get(get_all))
+        .route("/satellite/all", axum::routing::get(get_all))
         .with_state(ctx);
 }

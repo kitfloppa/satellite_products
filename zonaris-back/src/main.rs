@@ -6,19 +6,21 @@ pub mod service;
 pub mod utils;
 
 use dotenv::dotenv;
+use itertools::Itertools;
 use persistence::create_inmemory_repository;
 use persistence::model::instrument::Instrument;
 use persistence::model::instrument_data::InstrumentData;
 use persistence::model::oceancolor::OceanColorMapping;
 use persistence::model::satellite::Satellite;
 use persistence::model::satellite_instrument::SatelliteInstrument;
-use persistence::repository::Repository;
+use service::celestrak::CelestrakServiceDefault;
 use service::instrument_data::InstrumentDataServiceDefault;
 use service::oceancolor::{OceanColorJobSettings, OceanColorServiceDefault};
 use service::satellite::SatelliteServiceMock;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio_cron_scheduler::JobScheduler;
+use utils::DynError;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -27,8 +29,63 @@ use diesel_async::pooled_connection::deadpool::Pool;
 #[cfg(feature = "diesel")]
 use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 
+async fn get_satellite_by_catnr(
+    celestrak_service: &service::CelestrakService,
+    catnr: u32,
+) -> Result<Satellite, DynError> {
+    return Ok(Satellite::from(
+        celestrak_service
+            .gp_query(service::celestrak::Query::CATNR(catnr))
+            .await?
+            .into_iter()
+            .exactly_one()?,
+    ));
+}
+
+async fn add_test_data(
+    celestrak_service: service::CelestrakService,
+    satellite_repository: persistence::Repository<Satellite>,
+    instrument_repository: persistence::Repository<Instrument>,
+    satellite_instrument_repository: persistence::Repository<SatelliteInstrument>,
+    oceancolor_mapping_repository: persistence::Repository<OceanColorMapping>,
+) -> Result<(), DynError> {
+    {
+        let terra = get_satellite_by_catnr(&celestrak_service, 25994).await?;
+        let aqua = get_satellite_by_catnr(&celestrak_service, 27424).await?;
+        let s3a = get_satellite_by_catnr(&celestrak_service, 41335).await?;
+
+        let mut lock = satellite_repository.write().await;
+
+        lock.add(terra).await;
+        lock.add(aqua).await;
+        lock.add(s3a).await;
+    }
+
+    {
+        let mut lock = instrument_repository.write().await;
+        lock.add(Instrument::new("MODIS")).await;
+        lock.add(Instrument::new("OLCI")).await;
+    }
+
+    {
+        let mut lock = satellite_instrument_repository.write().await;
+        lock.add(SatelliteInstrument::new(0, 0)).await;
+        lock.add(SatelliteInstrument::new(1, 0)).await;
+        lock.add(SatelliteInstrument::new(2, 1)).await;
+    }
+
+    {
+        let mut lock = oceancolor_mapping_repository.write().await;
+        lock.add(OceanColorMapping::new(0, 8, 1102)).await;
+        lock.add(OceanColorMapping::new(1, 7, 1062)).await;
+        lock.add(OceanColorMapping::new(2, 29, 1267)).await;
+    }
+
+    return Ok(());
+}
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), DynError> {
     dotenv().ok();
     env_logger::init();
 
@@ -59,34 +116,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let instrument_data_repository = create_inmemory_repository::<InstrumentData>();
     let oceancolor_mapping_repository = create_inmemory_repository::<OceanColorMapping>();
 
-    // add test data
-    {
-        let mut lock = satellite_repository.write().await;
-        lock.add(Satellite::new(
-            "TERRA",
-            "1 25994U 99068A   23336.53168247  .00001150  00000+0  25187-3 0  9996",
-            "2 25994  98.0761  40.6034 0000638 235.8264 235.6779 14.59469347274213",
-        ))
-        .await;
-    }
-
-    {
-        let mut lock = instrument_repository.write().await;
-        lock.add(Instrument::new("MODIS")).await;
-    }
-
-    {
-        let mut lock = satellite_instrument_repository.write().await;
-        lock.add(SatelliteInstrument::new(0, 0)).await; // relax relax just for test
-    }
-
-    {
-        let mut lock = oceancolor_mapping_repository.write().await;
-        lock.add(OceanColorMapping::new(0, 8, 1102)).await; // relax relax just for test
-    }
-
     // construct services
     let satellite_service = Arc::new(SatelliteServiceMock::new(satellite_repository.clone()));
+
+    let celestrak_service = Arc::new(CelestrakServiceDefault::new());
 
     let instrument_data_service = Arc::new(InstrumentDataServiceDefault::new(
         satellite_instrument_repository.clone(),
@@ -98,6 +131,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         oceancolor_mapping_repository.clone(),
         instrument_data_service.clone(),
     ));
+
+    // add test data
+    add_test_data(
+        celestrak_service.clone(),
+        satellite_repository.clone(),
+        instrument_repository.clone(),
+        satellite_instrument_repository.clone(),
+        oceancolor_mapping_repository.clone(),
+    )
+    .await?;
 
     // setup job scheduler
     let job_scheduler = JobScheduler::new().await?;
@@ -115,6 +158,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(feature = "diesel")]
         pool,
         satellite_service,
+        celestrak_service,
         oceancolor_service,
         satellite_repository,
         instrument_repository,

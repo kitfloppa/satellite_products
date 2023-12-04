@@ -5,7 +5,6 @@ use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 
 use axum::Router;
 use tokio_cron_scheduler::JobScheduler;
-use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
     persistence::{
@@ -15,7 +14,7 @@ use crate::{
         },
         Repository,
     },
-    service::{InstrumentDataService, OceanColorService, SatelliteService},
+    service::{InstrumentDataService, OceanColorService, SatelliteService, CelestrakService},
 };
 
 pub struct AppContext {
@@ -32,6 +31,7 @@ pub struct AppContext {
     pub oceancolor_mapping_repository: Repository<OceanColorMapping>,
 
     pub satellite_service: SatelliteService,
+    pub celestrak_service: CelestrakService,
     pub instrument_data_service: InstrumentDataService,
     pub oceancolor_service: OceanColorService,
 
@@ -43,9 +43,6 @@ pub fn create_router(ctx: Arc<AppContext>) -> Router {
     let satellite_data_router = crate::controller::instrument_data::create_router(ctx.clone());
 
     return Router::new()
-        .nest(crate::controller::satellite::PATH, satellite_router)
-        .nest(
-            crate::controller::instrument_data::PATH,
-            satellite_data_router,
-        );
+        .merge(satellite_router)
+        .merge(satellite_data_router);
 }

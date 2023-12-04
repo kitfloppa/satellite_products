@@ -6,9 +6,12 @@ use image::ImageBuffer;
 use log::{error, info, trace};
 use tokio_cron_scheduler::Job;
 
-use crate::persistence::{
-    model::{instrument_data::InstrumentData, oceancolor::OceanColorMapping},
-    Repository,
+use crate::{
+    persistence::{
+        model::{instrument_data::InstrumentData, oceancolor::OceanColorMapping},
+        Repository,
+    },
+    utils::DynError,
 };
 
 use super::InstrumentDataService;
@@ -36,12 +39,12 @@ pub trait OceanColorService {
         sdate: NaiveDateTime,
         edate: NaiveDateTime,
         mapping: &OceanColorMapping,
-    ) -> Result<Vec<SearchItem>, Box<dyn std::error::Error + Send + Sync>>;
+    ) -> Result<Vec<SearchItem>, DynError>;
 
     async fn get(
         &self,
         item: SearchItem,
-    ) -> Result<ImageBuffer<image::Rgba<u8>, Vec<u8>>, Box<dyn std::error::Error + Send + Sync>>;
+    ) -> Result<ImageBuffer<image::Rgba<u8>, Vec<u8>>, DynError>;
 }
 
 pub struct OceanColorServiceDefault {
@@ -80,10 +83,7 @@ impl OceanColorServiceDefault {
 
     // TODO: refactor this ...
     // TODO: i think it can be located in trait
-    pub fn create_job(
-        self: &Arc<Self>,
-        settings: OceanColorJobSettings,
-    ) -> Result<Job, Box<dyn std::error::Error>> {
+    pub fn create_job(self: &Arc<Self>, settings: OceanColorJobSettings) -> Result<Job, DynError> {
         let oceancolor_service = self.clone();
         let job_state = Arc::new(tokio::sync::Mutex::new(JobState::new()));
 
@@ -347,7 +347,7 @@ impl OceanColorService for OceanColorServiceDefault {
         sdate: NaiveDateTime,
         edate: NaiveDateTime,
         mapping: &OceanColorMapping,
-    ) -> Result<Vec<SearchItem>, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<Vec<SearchItem>, DynError> {
         let fmt = "%Y-%m-%d %H:%M:%S";
         let sdate = sdate.format(fmt).to_string();
         let edate = edate.format(fmt).to_string();
@@ -389,8 +389,7 @@ impl OceanColorService for OceanColorServiceDefault {
     async fn get(
         &self,
         item: SearchItem,
-    ) -> Result<ImageBuffer<image::Rgba<u8>, Vec<u8>>, Box<dyn std::error::Error + Send + Sync>>
-    {
+    ) -> Result<ImageBuffer<image::Rgba<u8>, Vec<u8>>, DynError> {
         // todo migrate to tempfile
         let tmpdir = tempfile::tempdir()?;
 

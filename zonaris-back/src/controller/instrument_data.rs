@@ -69,11 +69,9 @@ async fn get_asset(Path(path): Path<String>, _ctx: State<Arc<AppContext>>) -> im
     Ok((headers, body))
 }
 
-pub const PATH: &str = "/data";
-
 pub fn create_router(ctx: Arc<AppContext>) -> Router {
     return Router::new()
-        .route("/get", get(get_by_satellite_id))
-        .route("/assets/*path", get(get_asset))
+        .route("/data/get", get(get_by_satellite_id))
+        .route("/data/assets/*path", get(get_asset))
         .with_state(ctx);
 }
