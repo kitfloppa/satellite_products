@@ -1,17 +1,46 @@
+use std::collections::HashMap;
+
+use anyhow::{Error, Result};
+
 use crate::{
     persistence::repository::{HasId, Id},
     pub_fields,
     service::celestrak::TLE,
 };
-use serde::Serialize;
 
 pub_fields! {
-    #[derive(Clone, Serialize)]
+    #[derive(Clone)]
     struct Satellite {
         id: Option<Id>,
         name: String,
         tle1: String,
         tle2: String,
+    }
+}
+
+// TODO: to macro or even better to attribute
+
+#[cfg(feature = "postgres")]
+use tokio_postgres::Row;
+
+#[cfg(feature = "postgres")]
+impl TryFrom<Row> for Satellite {
+    type Error = Error;
+
+    fn try_from(row: Row) -> Result<Self> {
+        let columns = row
+            .columns()
+            .iter()
+            .enumerate()
+            .map(|(i, col)| (col.name(), i))
+            .collect::<HashMap<_, _>>();
+
+        return Ok(Self {
+            id: Some(row.get(columns["id"])),
+            name: row.get(columns["name"]),
+            tle1: row.get(columns["tle1"]),
+            tle2: row.get(columns["tle2"]),
+        });
     }
 }
 

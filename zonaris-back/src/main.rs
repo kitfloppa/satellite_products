@@ -13,12 +13,14 @@ use persistence::model::instrument_data::InstrumentData;
 use persistence::model::oceancolor::OceanColorMapping;
 use persistence::model::satellite::Satellite;
 use persistence::model::satellite_instrument::SatelliteInstrument;
+use persistence::postgres::repository::PostgresRepository;
 use service::celestrak::CelestrakServiceDefault;
 use service::instrument_data::InstrumentDataServiceDefault;
 use service::oceancolor::{OceanColorJobSettings, OceanColorServiceDefault};
 use service::satellite::SatelliteServiceMock;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 use tokio_cron_scheduler::JobScheduler;
 use utils::DynError;
 use utoipa::OpenApi;
@@ -90,10 +92,9 @@ async fn main() -> Result<(), DynError> {
     env_logger::init();
 
     // fetch environment variables
-    #[cfg(feature = "diesel")]
-    {
-        let database_connection_url = std::env::var("DATABASE_URL")?;
-    }
+    #[cfg(feature = "postgres")]
+    let database_connection_url = std::env::var("DATABASE_URL")?;
+
     let server_ip = std::env::var("SERVER_IP")?;
 
     let oceancolor_authorization = std::env::var("OCEANCOLOR_AUTHORIZATION")?;
@@ -101,16 +102,21 @@ async fn main() -> Result<(), DynError> {
     let oceancolor_job_notfound = std::env::var("OCEANCOLOR_JOB_NOTFOUND")?.parse::<i64>()?;
 
     // config connection with database
-    #[cfg(feature = "diesel")]
-    {
-        let config = AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(
-            database_connection_url,
-        );
-        let pool = tokio::sync::Mutex::new(Pool::builder(config).build()?);
-    }
+    let (client, connection) =
+        tokio_postgres::connect(&database_connection_url, tokio_postgres::NoTls).await?;
+
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("connection error: {}", e);
+        }
+    });
 
     // construct repositories
-    let satellite_repository = create_inmemory_repository::<Satellite>();
+    // let satellite_repository = create_inmemory_repository::<Satellite>();
+    let satellite_repository = Arc::new(RwLock::new(PostgresRepository::new(
+        client,
+        String::from("satellite"),
+    )));
     let instrument_repository = create_inmemory_repository::<Instrument>();
     let satellite_instrument_repository = create_inmemory_repository::<SatelliteInstrument>();
     let instrument_data_repository = create_inmemory_repository::<InstrumentData>();

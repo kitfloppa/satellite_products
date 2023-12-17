@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use anyhow::Result;
 use async_trait::async_trait;
 
 pub type Id = i32;
@@ -16,13 +17,13 @@ where
     T: HasId,
 {
     /// Some(T) if record with given id found else None
-    async fn get(&self, id: Id) -> Option<T>;
+    async fn get(&self, id: Id) -> Result<Option<T>>;
 
     /// true if successfully added or if it's impossible to determine status of operation else false (for example in case when entity already with same key already in repository)
     async fn add(&mut self, entity: T) -> bool;
 
     /// true if successfully deleted or if it's impossible to determine status of operation else false
-    async fn delete(&mut self, id: Id) -> bool;
+    async fn delete(&mut self, id: Id) -> Result<bool>;
 
     /// true if successfully updated or if it's impossible to determine status of operation else false (for example in case when `entity.get_id().is_none()`)
     async fn update(&mut self, entity: T) -> bool;
@@ -113,8 +114,8 @@ where
     T: Clone,
     T: Send + Sync,
 {
-    async fn get(&self, id: Id) -> Option<T> {
-        return self.data.get(&id).cloned();
+    async fn get(&self, id: Id) -> Result<Option<T>> {
+        return Ok(self.data.get(&id).cloned());
     }
 
     async fn add(&mut self, mut entity: T) -> bool {
@@ -133,8 +134,8 @@ where
         return true;
     }
 
-    async fn delete(&mut self, id: Id) -> bool {
-        return self.data.remove(&id).is_some();
+    async fn delete(&mut self, id: Id) -> Result<bool> {
+        return Ok(self.data.remove(&id).is_some());
     }
 
     async fn update(&mut self, entity: T) -> bool {

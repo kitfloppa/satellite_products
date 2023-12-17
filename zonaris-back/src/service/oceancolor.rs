@@ -179,7 +179,7 @@ struct GeophysicalData {
 
 #[derive(Debug)]
 enum GeophysicalDataError {
-    Netcdf(netcdf::error::Error),
+    Netcdf(netcdf::Error),
     InvalidFileStructure(String),
     VariableNotFound(String),
     AttributeNotFound(String),
@@ -197,7 +197,7 @@ impl std::error::Error for GeophysicalDataError {}
 impl GeophysicalData {
     fn get_attr<'a, T>(var: &netcdf::Variable<'a>, name: &str) -> Result<T, GeophysicalDataError>
     where
-        T: TryFrom<netcdf::AttrValue, Error = netcdf::error::Error>,
+        T: TryFrom<netcdf::AttributeValue, Error = netcdf::Error>,
     {
         return T::try_from(
             var.attribute(name)
