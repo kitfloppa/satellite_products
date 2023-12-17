@@ -5,6 +5,7 @@ pub mod routes;
 pub mod service;
 pub mod utils;
 
+use anyhow::Result;
 use dotenv::dotenv;
 use itertools::Itertools;
 use persistence::create_inmemory_repository;
@@ -13,28 +14,24 @@ use persistence::model::instrument_data::InstrumentData;
 use persistence::model::oceancolor::OceanColorMapping;
 use persistence::model::satellite::Satellite;
 use persistence::model::satellite_instrument::SatelliteInstrument;
-use persistence::postgres::repository::PostgresRepository;
 use service::celestrak::CelestrakServiceDefault;
 use service::instrument_data::InstrumentDataServiceDefault;
 use service::oceancolor::{OceanColorJobSettings, OceanColorServiceDefault};
 use service::satellite::SatelliteServiceMock;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::Mutex;
 use tokio_cron_scheduler::JobScheduler;
-use utils::DynError;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-#[cfg(feature = "diesel")]
-use diesel_async::pooled_connection::deadpool::Pool;
-#[cfg(feature = "diesel")]
-use diesel_async::pooled_connection::AsyncDieselConnectionManager;
+#[cfg(feature = "postgres")]
+use persistence::postgres::create_postgres_repository;
 
 async fn get_satellite_by_catnr(
     celestrak_service: &service::CelestrakService,
     catnr: u32,
-) -> Result<Satellite, DynError> {
+) -> Result<Satellite> {
     return Ok(Satellite::from(
         celestrak_service
             .gp_query(service::celestrak::Query::CATNR(catnr))
@@ -50,44 +47,63 @@ async fn add_test_data(
     instrument_repository: persistence::Repository<Instrument>,
     satellite_instrument_repository: persistence::Repository<SatelliteInstrument>,
     oceancolor_mapping_repository: persistence::Repository<OceanColorMapping>,
-) -> Result<(), DynError> {
-    {
+) -> Result<()> {
+    let (terra, aqua, s3a) = {
         let terra = get_satellite_by_catnr(&celestrak_service, 25994).await?;
         let aqua = get_satellite_by_catnr(&celestrak_service, 27424).await?;
         let s3a = get_satellite_by_catnr(&celestrak_service, 41335).await?;
 
         let mut lock = satellite_repository.write().await;
 
-        lock.add(terra).await;
-        lock.add(aqua).await;
-        lock.add(s3a).await;
-    }
+        // TODO: delete unwrap
+        (
+            lock.add(terra).await?.unwrap(),
+            lock.add(aqua).await?.unwrap(),
+            lock.add(s3a).await?.unwrap(),
+        )
+    };
 
-    {
+    let (modis, olci) = {
         let mut lock = instrument_repository.write().await;
-        lock.add(Instrument::new("MODIS")).await;
-        lock.add(Instrument::new("OLCI")).await;
-    }
 
-    {
+        // TODO: delete unwrap
+        (
+            lock.add(Instrument::new("MODIS")).await?.unwrap(),
+            lock.add(Instrument::new("OLCI")).await?.unwrap(),
+        )
+    };
+
+    let (terra_modis, aqua_modis, s3a_olci) = {
         let mut lock = satellite_instrument_repository.write().await;
-        lock.add(SatelliteInstrument::new(0, 0)).await;
-        lock.add(SatelliteInstrument::new(1, 0)).await;
-        lock.add(SatelliteInstrument::new(2, 1)).await;
-    }
+
+        // TODO: delete unwrap
+        (
+            lock.add(SatelliteInstrument::new(terra, modis))
+                .await?
+                .unwrap(),
+            lock.add(SatelliteInstrument::new(aqua, modis))
+                .await?
+                .unwrap(),
+            lock.add(SatelliteInstrument::new(s3a, olci))
+                .await?
+                .unwrap(),
+        )
+    };
 
     {
         let mut lock = oceancolor_mapping_repository.write().await;
-        lock.add(OceanColorMapping::new(0, 8, 1102)).await;
-        lock.add(OceanColorMapping::new(1, 7, 1062)).await;
-        lock.add(OceanColorMapping::new(2, 29, 1267)).await;
+        lock.add(OceanColorMapping::new(terra_modis, 8, 1102))
+            .await?;
+        lock.add(OceanColorMapping::new(aqua_modis, 7, 1062))
+            .await?;
+        lock.add(OceanColorMapping::new(s3a_olci, 29, 1267)).await?;
     }
 
     return Ok(());
 }
 
 #[tokio::main]
-async fn main() -> Result<(), DynError> {
+async fn main() -> Result<()> {
     dotenv().ok();
     env_logger::init();
 
@@ -111,16 +127,19 @@ async fn main() -> Result<(), DynError> {
         }
     });
 
+    let client = Arc::new(Mutex::new(client));
+
     // construct repositories
     // let satellite_repository = create_inmemory_repository::<Satellite>();
-    let satellite_repository = Arc::new(RwLock::new(PostgresRepository::new(
-        client,
-        String::from("satellite"),
-    )));
-    let instrument_repository = create_inmemory_repository::<Instrument>();
-    let satellite_instrument_repository = create_inmemory_repository::<SatelliteInstrument>();
-    let instrument_data_repository = create_inmemory_repository::<InstrumentData>();
-    let oceancolor_mapping_repository = create_inmemory_repository::<OceanColorMapping>();
+    let satellite_repository = create_postgres_repository::<Satellite>(client.clone(), "satellite");
+    let instrument_repository =
+        create_postgres_repository::<Instrument>(client.clone(), "instrument");
+    let satellite_instrument_repository =
+        create_postgres_repository::<SatelliteInstrument>(client.clone(), "satellite_instrument");
+    let instrument_data_repository =
+        create_postgres_repository::<InstrumentData>(client.clone(), "instrument_data");
+    let oceancolor_mapping_repository =
+        create_postgres_repository::<OceanColorMapping>(client.clone(), "ocean_color_mapping");
 
     // construct services
     let satellite_service = Arc::new(SatelliteServiceMock::new(satellite_repository.clone()));

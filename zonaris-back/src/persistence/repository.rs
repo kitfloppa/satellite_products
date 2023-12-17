@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 
 pub type Id = i32;
@@ -20,7 +20,7 @@ where
     async fn get(&self, id: Id) -> Result<Option<T>>;
 
     /// true if successfully added or if it's impossible to determine status of operation else false (for example in case when entity already with same key already in repository)
-    async fn add(&mut self, entity: T) -> bool;
+    async fn add(&mut self, entity: T) -> Result<Option<Id>>;
 
     /// true if successfully deleted or if it's impossible to determine status of operation else false
     async fn delete(&mut self, id: Id) -> Result<bool>;
@@ -118,7 +118,7 @@ where
         return Ok(self.data.get(&id).cloned());
     }
 
-    async fn add(&mut self, mut entity: T) -> bool {
+    async fn add(&mut self, mut entity: T) -> Result<Option<Id>> {
         let key = if let Some(id) = entity.get_id() {
             id
         } else {
@@ -126,12 +126,12 @@ where
         };
 
         if self.data.contains_key(&key) {
-            return false;
+            return Err(anyhow!("key already presented"));
         }
 
         entity.set_id(key);
         self.data.insert(key, entity);
-        return true;
+        return Ok(Some(key));
     }
 
     async fn delete(&mut self, id: Id) -> Result<bool> {

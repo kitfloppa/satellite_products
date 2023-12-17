@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use thiserror::Error;
 
-use crate::{utils::DynError, pub_fields};
+use crate::pub_fields;
 
 pub enum Query {
     /// Catalog Number (1 to 9 digits). Allows return of data for a single catalog number.
@@ -20,7 +22,6 @@ pub enum Query {
     /// Special data sets for the GEO Protected Zone (GPZ) or GPZ Plus.
     SPECIAL(String),
 }
-
 
 pub_fields! {
     #[derive(Debug)]
@@ -41,23 +42,17 @@ impl TLE {
     }
 }
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum CelestrakError {
+    #[error("invalid query")]
     InvalidQuery,
+    #[error("invalid output format")]
     InvalidOutputFormat,
 }
 
-impl std::fmt::Display for CelestrakError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "An error occurred in the Celestrak module.")
-    }
-}
-
-impl std::error::Error for CelestrakError {}
-
 #[async_trait]
 pub trait CelestrakService {
-    async fn gp_query(&self, query: Query) -> Result<Vec<TLE>, DynError>;
+    async fn gp_query(&self, query: Query) -> Result<Vec<TLE>>;
 }
 
 pub struct CelestrakServiceDefault {}
@@ -70,7 +65,7 @@ impl CelestrakServiceDefault {
 
 #[async_trait]
 impl CelestrakService for CelestrakServiceDefault {
-    async fn gp_query(&self, query: Query) -> Result<Vec<TLE>, DynError> {
+    async fn gp_query(&self, query: Query) -> Result<Vec<TLE>> {
         let mut params = HashMap::<&str, String>::new();
         match query {
             Query::CATNR(catnr) => params.insert("CATNR", catnr.to_string()),
@@ -95,12 +90,12 @@ impl CelestrakService for CelestrakServiceDefault {
                 return Ok(Vec::new());
             } else if lines[0] == "Invalid query: \"\"" {
                 // TODO: maybe in some cases there error between ""?
-                return Err(Box::new(CelestrakError::InvalidQuery));
+                return Err(anyhow!(CelestrakError::InvalidQuery));
             }
         }
 
         if lines.len() % 3 != 0 {
-            return Err(Box::new(CelestrakError::InvalidOutputFormat));
+            return Err(anyhow!(CelestrakError::InvalidOutputFormat));
         }
 
         let tles = lines

@@ -20,9 +20,12 @@ tokio-cron-scheduler = "0.9.4"
 log = "0.4.20"
 async-trait = "0.1.74"
 
+table-macro = { path = "src/persistence/postgres/table-macro" }
+
 # Utils
 itertools = "0.12.0"
 anyhow = "1.0.75"
+thiserror = "1.0.51"
 
 # Swagger
 utoipa = { version = "4.1.0", features = ["axum_extras"] }
