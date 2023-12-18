@@ -5,7 +5,8 @@ pub mod celestrak;
 pub mod instrument_data;
 pub mod oceancolor;
 
-// TODO: i dont sure but maybe all services should be under RwLock
+#[cfg(test)]
+mod tests;
 
 pub type SatelliteService = Arc<dyn self::satellite::SatelliteService + Send + Sync>;
 pub type CelestrakService = Arc<dyn self::celestrak::CelestrakService + Send + Sync>;
