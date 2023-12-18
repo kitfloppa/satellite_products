@@ -1,7 +1,9 @@
+use table_macro::Table;
+
 use crate::persistence::repository::{HasId, Id};
 
 crate::pub_fields! {
-    #[derive(Clone)]
+    #[derive(Clone, Table)]
     struct SatelliteInstrument {
         id: Option<Id>,
         satellite_id: Id,  // reference Satellite.id

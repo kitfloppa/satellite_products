@@ -1,3 +1,5 @@
+use table_macro::Table;
+
 use crate::persistence::repository::{HasId, Id};
 
 // NOTE: actually i don't know which type they use on their backend
@@ -5,7 +7,7 @@ pub type SensorId = i32;
 pub type DataId = i32;
 
 crate::pub_fields! {
-    #[derive(Clone)]
+    #[derive(Clone, Table)]
     struct OceanColorMapping {
         id: Option<Id>,
         satellite_instrument_id: Id, // reference SatelliteInstrument.id

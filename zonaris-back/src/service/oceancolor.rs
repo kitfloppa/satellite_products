@@ -1,17 +1,15 @@
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 
+use anyhow::Result;
 use axum::async_trait;
 use chrono::prelude::*;
 use image::ImageBuffer;
 use log::{error, info, trace};
 use tokio_cron_scheduler::Job;
 
-use crate::{
-    persistence::{
-        model::{instrument_data::InstrumentData, oceancolor::OceanColorMapping},
-        Repository,
-    },
-    utils::DynError,
+use crate::persistence::{
+    model::{instrument_data::InstrumentData, oceancolor::OceanColorMapping},
+    Repository,
 };
 
 use super::InstrumentDataService;
@@ -39,12 +37,9 @@ pub trait OceanColorService {
         sdate: NaiveDateTime,
         edate: NaiveDateTime,
         mapping: &OceanColorMapping,
-    ) -> Result<Vec<SearchItem>, DynError>;
+    ) -> Result<Vec<SearchItem>>;
 
-    async fn get(
-        &self,
-        item: SearchItem,
-    ) -> Result<ImageBuffer<image::Rgba<u8>, Vec<u8>>, DynError>;
+    async fn get(&self, item: SearchItem) -> Result<ImageBuffer<image::Rgba<u8>, Vec<u8>>>;
 }
 
 pub struct OceanColorServiceDefault {
@@ -83,7 +78,7 @@ impl OceanColorServiceDefault {
 
     // TODO: refactor this ...
     // TODO: i think it can be located in trait
-    pub fn create_job(self: &Arc<Self>, settings: OceanColorJobSettings) -> Result<Job, DynError> {
+    pub fn create_job(self: &Arc<Self>, settings: OceanColorJobSettings) -> Result<Job> {
         let oceancolor_service = self.clone();
         let job_state = Arc::new(tokio::sync::Mutex::new(JobState::new()));
 
@@ -179,7 +174,7 @@ struct GeophysicalData {
 
 #[derive(Debug)]
 enum GeophysicalDataError {
-    Netcdf(netcdf::error::Error),
+    Netcdf(netcdf::Error),
     InvalidFileStructure(String),
     VariableNotFound(String),
     AttributeNotFound(String),
@@ -197,7 +192,7 @@ impl std::error::Error for GeophysicalDataError {}
 impl GeophysicalData {
     fn get_attr<'a, T>(var: &netcdf::Variable<'a>, name: &str) -> Result<T, GeophysicalDataError>
     where
-        T: TryFrom<netcdf::AttrValue, Error = netcdf::error::Error>,
+        T: TryFrom<netcdf::AttributeValue, Error = netcdf::Error>,
     {
         return T::try_from(
             var.attribute(name)
@@ -347,7 +342,7 @@ impl OceanColorService for OceanColorServiceDefault {
         sdate: NaiveDateTime,
         edate: NaiveDateTime,
         mapping: &OceanColorMapping,
-    ) -> Result<Vec<SearchItem>, DynError> {
+    ) -> Result<Vec<SearchItem>> {
         let fmt = "%Y-%m-%d %H:%M:%S";
         let sdate = sdate.format(fmt).to_string();
         let edate = edate.format(fmt).to_string();
@@ -386,10 +381,7 @@ impl OceanColorService for OceanColorServiceDefault {
             .collect::<Vec<_>>());
     }
 
-    async fn get(
-        &self,
-        item: SearchItem,
-    ) -> Result<ImageBuffer<image::Rgba<u8>, Vec<u8>>, DynError> {
+    async fn get(&self, item: SearchItem) -> Result<ImageBuffer<image::Rgba<u8>, Vec<u8>>> {
         // todo migrate to tempfile
         let tmpdir = tempfile::tempdir()?;
 

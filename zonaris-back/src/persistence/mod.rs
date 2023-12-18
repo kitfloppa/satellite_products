@@ -5,6 +5,8 @@ use tokio::sync::RwLock;
 use self::repository::HasId;
 
 pub mod model;
+#[cfg(feature = "postgres")]
+pub mod postgres;
 pub mod repository;
 
 pub type Repository<T> = Arc<RwLock<dyn self::repository::Repository<T> + Send + Sync>>;

@@ -1,12 +1,13 @@
+use table_macro::Table;
+
 use crate::{
     persistence::repository::{HasId, Id},
     pub_fields,
     service::celestrak::TLE,
 };
-use serde::Serialize;
 
 pub_fields! {
-    #[derive(Clone, Serialize)]
+    #[derive(Clone, Table)]
     struct Satellite {
         id: Option<Id>,
         name: String,
