@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::extract::{Path, Query};
+use axum::extract::Query;
 use axum::http::header::{self, HeaderMap};
 use axum::http::{HeaderValue, StatusCode};
 use axum::response::IntoResponse;
@@ -14,7 +14,7 @@ use crate::dto::instrument_data::{
 };
 use crate::routes::AppContext;
 
-use super::utils::to_internal;
+use super::utils::AppError;
 
 const PATH_GET: &str = "/data/get";
 const PATH_GET_ASSET: &str = "/data/get_asset";
@@ -30,12 +30,11 @@ const PATH_GET_ASSET: &str = "/data/get_asset";
 async fn get_by_satellite_id(
     ctx: State<Arc<AppContext>>,
     request: Query<GetBySatelliteIdRequest>,
-) -> Result<Json<Vec<InstrumentDataResponse>>, StatusCode> {
+) -> Result<Json<Vec<InstrumentDataResponse>>, AppError> {
     return Ok(Json(
         ctx.instrument_data_service
             .get_by_satellite_id(request.id)
-            .await
-            .map_err(to_internal)?
+            .await?
             .into_iter()
             .map(|it| InstrumentDataResponse::from(it))
             .collect(),
@@ -52,33 +51,33 @@ async fn get_by_satellite_id(
     )
 )]
 async fn get_asset(
-    _ctx: State<Arc<AppContext>>,
+    ctx: State<Arc<AppContext>>,
     request: Query<GetAssetRequest>,
-) -> impl IntoResponse {
-    let file = match tokio::fs::File::open(&request.path).await {
-        Ok(file) => file,
-        Err(err) => {
-            return Err((
-                axum::http::StatusCode::NOT_FOUND,
-                format!("File not found: {}", err),
-            ))
+) -> Result<impl IntoResponse, AppError> {
+    let asset = match ctx.instrument_data_service.get_by_id(request.id).await? {
+        Some(instrument_data) => instrument_data,
+        None => {
+            return Ok((
+                StatusCode::NOT_FOUND,
+                format!("instrument data with id {} not found", request.id),
+            )
+                .into_response());
         }
     };
+
+    let file = tokio::fs::File::open(&asset.path).await?;
 
     let stream = ReaderStream::new(file);
     let body = axum::body::Body::from_stream(stream);
 
     let mut headers = HeaderMap::new();
-    headers.insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_str("image/png").unwrap(),
-    ); // TODO: unwrap
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_str("image/png")?);
     headers.insert(
         header::CONTENT_DISPOSITION,
-        HeaderValue::from_str("inline").unwrap(),
-    ); // TODO: unwrap
+        HeaderValue::from_str("inline")?,
+    );
 
-    Ok((headers, body))
+    Ok((headers, body).into_response())
 }
 
 pub fn create_router(ctx: Arc<AppContext>) -> Router {

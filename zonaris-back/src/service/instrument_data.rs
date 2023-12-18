@@ -12,6 +12,7 @@ use crate::persistence::{
 #[async_trait]
 pub trait InstrumentDataService {
     async fn add_data(&self, data: InstrumentData) -> Result<bool>;
+    async fn get_by_id(&self, id: Id) -> Result<Option<InstrumentData>>;
     async fn get_by_satellite_id(&self, id: Id) -> Result<Vec<InstrumentData>>;
 }
 
@@ -38,6 +39,10 @@ impl InstrumentDataService for InstrumentDataServiceDefault {
         let mut satellite_data_repository = self.instrument_data_repository.write().await;
         satellite_data_repository.add(data).await?;
         return Ok(true);
+    }
+
+    async fn get_by_id(&self, id: Id) -> Result<Option<InstrumentData>> {
+        return Ok(self.instrument_data_repository.read().await.get(id).await?);
     }
 
     // TODO: it's should be done on repository level and repository should give public api for this

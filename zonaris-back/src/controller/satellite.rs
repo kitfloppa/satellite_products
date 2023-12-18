@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use axum::http::StatusCode;
 use axum::Router;
 use axum::{extract::State, Json};
 
@@ -8,7 +7,7 @@ use crate::dto::satellite::SatelliteResponse;
 
 use crate::routes::AppContext;
 
-use super::utils::to_internal;
+use super::utils::AppError;
 
 const PATH_ALL: &str = "/satellite/all";
 
@@ -19,12 +18,11 @@ const PATH_ALL: &str = "/satellite/all";
         (status = 200, body=[SatelliteResponse])
     )
 )]
-async fn get_all(ctx: State<Arc<AppContext>>) -> Result<Json<Vec<SatelliteResponse>>, StatusCode> {
+async fn get_all(ctx: State<Arc<AppContext>>) -> Result<Json<Vec<SatelliteResponse>>, AppError> {
     return Ok(Json(
         ctx.satellite_service
             .get_all()
-            .await
-            .map_err(to_internal)?
+            .await?
             .into_iter()
             .map(|it| SatelliteResponse::from(it))
             .collect(),
