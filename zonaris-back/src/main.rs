@@ -14,20 +14,21 @@ use persistence::model::instrument_data::InstrumentData;
 use persistence::model::oceancolor::OceanColorMapping;
 use persistence::model::satellite::Satellite;
 use persistence::model::satellite_instrument::SatelliteInstrument;
-use persistence::postgres::migration::migrate;
 use service::celestrak::CelestrakServiceDefault;
 use service::instrument_data::InstrumentDataServiceDefault;
 use service::oceancolor::{OceanColorJobSettings, OceanColorServiceDefault};
 use service::satellite::SatelliteServiceMock;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use tokio_cron_scheduler::JobScheduler;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 #[cfg(feature = "postgres")]
-use persistence::postgres::create_postgres_repository;
+use tokio::sync::Mutex;
+
+#[cfg(feature = "postgres")]
+use persistence::postgres::{create_postgres_repository, migration::migrate};
 
 async fn get_satellite_by_catnr(
     celestrak_service: &service::CelestrakService,
@@ -119,30 +120,61 @@ async fn main() -> Result<()> {
     let oceancolor_job_notfound = std::env::var("OCEANCOLOR_JOB_NOTFOUND")?.parse::<i64>()?;
 
     // config connection with database
-    let (client, connection) =
-        tokio_postgres::connect(&database_connection_url, tokio_postgres::NoTls).await?;
+    #[cfg(feature = "postgres")]
+    let client = {
+        let (client, connection) =
+            tokio_postgres::connect(&database_connection_url, tokio_postgres::NoTls).await?;
 
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("connection error: {}", e);
-        }
-    });
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("connection error: {}", e);
+            }
+        });
 
-    let client = Arc::new(Mutex::new(client));
+        let client = Arc::new(Mutex::new(client));
+        // TODO: migrate should be done by different tools in deploy time (k8s init containers)
+        migrate(client.clone()).await?;
 
-    migrate(client.clone()).await?;
+        client
+    };
 
     // construct repositories
-    // let satellite_repository = create_inmemory_repository::<Satellite>();
-    let satellite_repository = create_postgres_repository::<Satellite>(client.clone(), "satellite");
-    let instrument_repository =
-        create_postgres_repository::<Instrument>(client.clone(), "instrument");
-    let satellite_instrument_repository =
-        create_postgres_repository::<SatelliteInstrument>(client.clone(), "satellite_instrument");
-    let instrument_data_repository =
-        create_postgres_repository::<InstrumentData>(client.clone(), "instrument_data");
-    let oceancolor_mapping_repository =
-        create_postgres_repository::<OceanColorMapping>(client.clone(), "ocean_color_mapping");
+    #[cfg(not(feature = "postgres"))]
+    let (
+        satellite_repository,
+        instrument_repository,
+        satellite_instrument_repository,
+        instrument_data_repository,
+        oceancolor_mapping_repository,
+    ) = {
+        (
+            create_inmemory_repository::<Satellite>(),
+            create_inmemory_repository::<Instrument>(),
+            create_inmemory_repository::<SatelliteInstrument>(),
+            create_inmemory_repository::<InstrumentData>(),
+            create_inmemory_repository::<OceanColorMapping>(),
+        )
+    };
+
+    #[cfg(feature = "postgres")]
+    let (
+        satellite_repository,
+        instrument_repository,
+        satellite_instrument_repository,
+        instrument_data_repository,
+        oceancolor_mapping_repository,
+    ) = {
+        (
+            create_postgres_repository::<Satellite>(client.clone(), "satellite"),
+            create_postgres_repository::<Instrument>(client.clone(), "instrument"),
+            create_postgres_repository::<SatelliteInstrument>(
+                client.clone(),
+                "satellite_instrument",
+            ),
+            create_postgres_repository::<InstrumentData>(client.clone(), "instrument_data"),
+            create_postgres_repository::<OceanColorMapping>(client.clone(), "ocean_color_mapping"),
+        )
+    };
 
     // construct services
     let satellite_service = Arc::new(SatelliteServiceMock::new(satellite_repository.clone()));
