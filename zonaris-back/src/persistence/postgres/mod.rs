@@ -7,6 +7,7 @@ use crate::persistence::repository::HasId;
 
 use self::repository::ColumnValuePair;
 
+pub mod migration;
 pub mod repository;
 
 pub type Client = Arc<Mutex<tokio_postgres::Client>>;

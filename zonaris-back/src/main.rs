@@ -14,6 +14,7 @@ use persistence::model::instrument_data::InstrumentData;
 use persistence::model::oceancolor::OceanColorMapping;
 use persistence::model::satellite::Satellite;
 use persistence::model::satellite_instrument::SatelliteInstrument;
+use persistence::postgres::migration::migrate;
 use service::celestrak::CelestrakServiceDefault;
 use service::instrument_data::InstrumentDataServiceDefault;
 use service::oceancolor::{OceanColorJobSettings, OceanColorServiceDefault};
@@ -128,6 +129,8 @@ async fn main() -> Result<()> {
     });
 
     let client = Arc::new(Mutex::new(client));
+
+    migrate(client.clone()).await?;
 
     // construct repositories
     // let satellite_repository = create_inmemory_repository::<Satellite>();
