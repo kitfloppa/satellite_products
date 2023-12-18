@@ -8,7 +8,6 @@ pub mod utils;
 use anyhow::Result;
 use dotenv::dotenv;
 use itertools::Itertools;
-use persistence::create_inmemory_repository;
 use persistence::model::instrument::Instrument;
 use persistence::model::instrument_data::InstrumentData;
 use persistence::model::oceancolor::OceanColorMapping;
@@ -23,6 +22,9 @@ use std::sync::Arc;
 use tokio_cron_scheduler::JobScheduler;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+
+#[cfg(not(feature = "postgres"))]
+use persistence::create_inmemory_repository;
 
 #[cfg(feature = "postgres")]
 use tokio::sync::Mutex;
