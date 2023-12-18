@@ -5,6 +5,7 @@ use axum::async_trait;
 use chrono::prelude::*;
 use image::ImageBuffer;
 use log::{error, info, trace};
+use tokio::sync::Mutex;
 use tokio_cron_scheduler::Job;
 
 use crate::persistence::{
@@ -76,87 +77,92 @@ impl OceanColorServiceDefault {
         };
     }
 
-    // TODO: refactor this ...
+    async fn job_func(
+        oceancolor_service: Arc<OceanColorServiceDefault>,
+        job_state: Arc<Mutex<JobState>>,
+        settings: Arc<OceanColorJobSettings>,
+    ) -> Result<()> {
+        let edate = Utc::now().naive_utc();
+
+        let sdate = {
+            let mut job_state = job_state.lock().await;
+
+            let r = if let Some(last_date) = job_state.last_date {
+                last_date
+            } else {
+                Utc::now()
+                    .checked_sub_signed(settings.not_found_duration)
+                    .unwrap()
+                    .naive_utc()
+            };
+
+            job_state.last_date = Some(edate);
+
+            r
+        };
+
+        let mappings = {
+            let lock = oceancolor_service
+                .oceancolor_mapping_repository
+                .read()
+                .await;
+
+            lock.get_all().await?
+        };
+
+        for mapping in mappings {
+            let items = oceancolor_service.search(sdate, edate, &mapping).await?;
+
+            info!(
+                "found {} items in range ({}; {})",
+                items.len(),
+                sdate,
+                edate
+            );
+
+            let current_time = Utc::now();
+            let subfolder = current_time.format("%Y%m%d").to_string();
+            let fileset = current_time.format("%H%M%S").to_string();
+            let base_path = format!("images/{}", subfolder);
+
+            std::fs::create_dir_all(&base_path)?;
+
+            for (idx, item) in items.into_iter().enumerate() {
+                let img = oceancolor_service.get(item).await?;
+                let img_path = format!("{}/{}_{}.png", base_path, fileset, idx);
+                img.save(&img_path)?;
+
+                let satellite_data = InstrumentData::new(mapping.satellite_instrument_id, img_path);
+                if !oceancolor_service
+                    .instrument_data_service
+                    .add_data(satellite_data)
+                    .await?
+                {
+                    error!("failed to add new data");
+                }
+            }
+        }
+
+        return Ok(());
+    }
+
     // TODO: i think it can be located in trait
     pub fn create_job(self: &Arc<Self>, settings: OceanColorJobSettings) -> Result<Job> {
         let oceancolor_service = self.clone();
-        let job_state = Arc::new(tokio::sync::Mutex::new(JobState::new()));
+        let job_state = Arc::new(Mutex::new(JobState::new()));
+        let settings = Arc::new(settings);
 
         let job = Job::new_repeated_async(settings.time_step, move |_uuid, _job_scheduler| {
             let oceancolor_service = oceancolor_service.clone();
             let job_state = job_state.clone();
+            let settings = settings.clone();
 
             return Box::pin(async move {
-                let edate = Utc::now().naive_utc();
-
-                let sdate = {
-                    let mut job_state = job_state.lock().await;
-
-                    let r = if let Some(last_date) = job_state.last_date {
-                        last_date
-                    } else {
-                        Utc::now()
-                            .checked_sub_signed(settings.not_found_duration)
-                            .unwrap()
-                            .naive_utc()
-                    };
-
-                    job_state.last_date = Some(edate);
-
-                    r
-                };
-
-                let mappings = {
-                    let lock = oceancolor_service
-                        .oceancolor_mapping_repository
-                        .read()
-                        .await;
-
-                    lock.get_all().await
-                };
-
-                for mapping in mappings {
-                    let result_items = oceancolor_service.search(sdate, edate, &mapping).await.ok(); // TODO it's very strange
-                    if let Some(items) = result_items {
-                        info!(
-                            "found {} items in range ({}; {})",
-                            items.len(),
-                            sdate,
-                            edate
-                        );
-
-                        let current_time = Utc::now();
-                        let subfolder = current_time.format("%Y%m%d").to_string();
-                        let fileset = current_time.format("%H%M%S").to_string();
-                        let base_path = format!("images/{}", subfolder);
-                        if let Err(err) = std::fs::create_dir_all(&base_path) {
-                            error!("failed to create all subdirs in path, because: {}", err);
-                            return;
-                        }
-
-                        for (idx, item) in items.into_iter().enumerate() {
-                            if let Ok(img) = oceancolor_service.get(item).await {
-                                let img_path = format!("{}/{}_{}.png", base_path, fileset, idx);
-                                if let Err(err) = img.save(&img_path) {
-                                    error!("failed to save image: {}", err);
-                                } else {
-                                    let satellite_data = InstrumentData::new(
-                                        mapping.satellite_instrument_id,
-                                        img_path,
-                                    );
-                                    if !oceancolor_service
-                                        .instrument_data_service
-                                        .add_data(satellite_data)
-                                        .await
-                                    {
-                                        error!("failed to add new data");
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        error!("search failed in range ({}; {})!", sdate, edate);
-                    }
+                if let Err(err) =
+                    OceanColorServiceDefault::job_func(oceancolor_service, job_state, settings)
+                        .await
+                {
+                    error!("{}\n{}", err, err.backtrace());
                 }
             });
         })?;

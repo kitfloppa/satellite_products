@@ -2,19 +2,26 @@ use std::sync::Arc;
 
 use axum::extract::{Path, Query};
 use axum::http::header::{self, HeaderMap};
-use axum::http::HeaderValue;
+use axum::http::{HeaderValue, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 use axum::{extract::State, Json};
 use tokio_util::io::ReaderStream;
 
-use crate::dto::instrument_data::{GetBySatelliteIdRequest, InstrumentDataResponse};
+use crate::dto::instrument_data::{
+    GetAssetRequest, GetBySatelliteIdRequest, InstrumentDataResponse,
+};
 use crate::routes::AppContext;
+
+use super::utils::to_internal;
+
+const PATH_GET: &str = "/data/get";
+const PATH_GET_ASSET: &str = "/data/get_asset";
 
 #[utoipa::path(
     get,
-    path = "/data/get",
+    path = PATH_GET,
     params(GetBySatelliteIdRequest),
     responses(
         (status = 200, body=[InstrumentDataResponse])
@@ -23,27 +30,32 @@ use crate::routes::AppContext;
 async fn get_by_satellite_id(
     ctx: State<Arc<AppContext>>,
     request: Query<GetBySatelliteIdRequest>,
-) -> Json<Vec<InstrumentDataResponse>> {
-    Json(
+) -> Result<Json<Vec<InstrumentDataResponse>>, StatusCode> {
+    return Ok(Json(
         ctx.instrument_data_service
             .get_by_satellite_id(request.id)
             .await
+            .map_err(to_internal)?
             .into_iter()
             .map(|it| InstrumentDataResponse::from(it))
             .collect(),
-    )
+    ));
 }
 
-// TODO: https://github.com/OAI/OpenAPI-Specification/issues/2653
-// #[utoipa::path(
-//     get,
-//     path = "/data/assets/{path}",
-//     params(
-//         ("path" = String, Path, allow_reserved)
-//     )
-// )]
-async fn get_asset(Path(path): Path<String>, _ctx: State<Arc<AppContext>>) -> impl IntoResponse {
-    let file = match tokio::fs::File::open(&path).await {
+#[utoipa::path(
+    get,
+    path = PATH_GET_ASSET,
+    params(GetAssetRequest),
+    responses(
+        (status = 200),
+        (status = 404)
+    )
+)]
+async fn get_asset(
+    _ctx: State<Arc<AppContext>>,
+    request: Query<GetAssetRequest>,
+) -> impl IntoResponse {
+    let file = match tokio::fs::File::open(&request.path).await {
         Ok(file) => file,
         Err(err) => {
             return Err((
@@ -71,7 +83,7 @@ async fn get_asset(Path(path): Path<String>, _ctx: State<Arc<AppContext>>) -> im
 
 pub fn create_router(ctx: Arc<AppContext>) -> Router {
     return Router::new()
-        .route("/data/get", get(get_by_satellite_id))
-        .route("/data/assets/*path", get(get_asset))
+        .route(PATH_GET, get(get_by_satellite_id))
+        .route(PATH_GET_ASSET, get(get_asset))
         .with_state(ctx);
 }

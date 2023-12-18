@@ -24,3 +24,11 @@ pub struct InstrumentDataResponse {
 mapper!(InstrumentData, InstrumentDataResponse, {
     path -> path,
 });
+
+pub_fields! {
+    #[derive(Deserialize, IntoParams)]
+    struct GetAssetRequest {
+        #[param(allow_reserved)]
+        path: String,
+    }
+}

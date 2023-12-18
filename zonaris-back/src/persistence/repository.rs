@@ -26,10 +26,10 @@ where
     async fn delete(&mut self, id: Id) -> Result<bool>;
 
     /// true if successfully updated or if it's impossible to determine status of operation else false (for example in case when `entity.get_id().is_none()`)
-    async fn update(&mut self, entity: T) -> bool;
+    async fn update(&mut self, entity: T) -> Result<bool>;
 
     // TODO: this function can have performance issue. recomended implementation with pagination (offset, size)
-    async fn get_all(&self) -> Vec<T>;
+    async fn get_all(&self) -> Result<Vec<T>>;
 }
 
 pub struct InMemoryRepository<T>
@@ -138,21 +138,17 @@ where
         return Ok(self.data.remove(&id).is_some());
     }
 
-    async fn update(&mut self, entity: T) -> bool {
-        let key = if let Some(id) = entity.get_id() {
-            id
-        } else {
-            return false;
-        };
-
+    async fn update(&mut self, entity: T) -> Result<bool> {
+        let key = entity.get_id().ok_or(anyhow!("entity doesn't have id"))?;
         if let Some(data) = self.data.get_mut(&key) {
             *data = entity;
+            return Ok(true);
         }
 
-        return true;
+        return Ok(false);
     }
 
-    async fn get_all(&self) -> Vec<T> {
-        return self.data.values().cloned().collect();
+    async fn get_all(&self) -> Result<Vec<T>> {
+        return Ok(self.data.values().cloned().collect());
     }
 }

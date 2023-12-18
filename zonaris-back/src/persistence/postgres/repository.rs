@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use anyhow::{Error, Result};
+use anyhow::{anyhow, Error, Result};
 use async_trait::async_trait;
 use itertools::Itertools;
 use log::info;
@@ -127,12 +127,11 @@ where
         return Ok(self.client.lock().await.execute(&statement, &[&id]).await? != 0);
     }
 
-    async fn update(&mut self, entity: T) -> bool {
-        let id = entity.get_id().unwrap();
+    async fn update(&mut self, entity: T) -> Result<bool> {
+        let id = entity.get_id().ok_or(anyhow!("entity doesn't have id"))?;
 
         // TODO: statement can be generated just one
-        // TODO: delete unwrap
-        let column_value_pairs: Vec<ColumnValuePair> = entity.try_into().unwrap();
+        let column_value_pairs: Vec<ColumnValuePair> = entity.try_into()?;
 
         let columns = column_value_pairs
             .iter()
@@ -156,33 +155,24 @@ where
 
         params.push(&id);
 
-        // TODO: delete unwrap
-        return self
+        return Ok(self
             .client
             .lock()
             .await
             .execute(&statement, &params)
-            .await
-            .unwrap()
-            != 0;
+            .await?
+            != 0);
     }
 
-    async fn get_all(&self) -> Vec<T> {
+    async fn get_all(&self) -> Result<Vec<T>> {
         let statement = format!("SELECT * FROM {}", self.table);
         info!("statement: {}", &statement);
 
-        let rows = self
-            .client
-            .lock()
-            .await
-            .query(&statement, &[])
-            .await
-            .unwrap(); // TODO: delete unwrap
+        let rows = self.client.lock().await.query(&statement, &[]).await?;
 
-        return rows
+        return Ok(rows
             .into_iter()
             .map(|row| T::try_from(row))
-            .collect::<Result<Vec<_>>>()
-            .unwrap(); // TODO: delete unwrap
+            .collect::<Result<Vec<_>>>()?);
     }
 }

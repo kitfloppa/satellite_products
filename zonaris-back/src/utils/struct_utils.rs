@@ -4,13 +4,13 @@ macro_rules! pub_fields {
     {
         $(#[derive($($macros:tt),*)])*
         struct $name:ident {
-            $(#[$field_macro_name:tt($field_macro_key:tt = $field_macro_value:tt)])*
+            $(#[$field_macro_name:tt($field_macro_key:tt $(= $field_macro_value:tt)?)])*
             $($field:ident: $t:ty,)*
         }
     } => {
         $(#[derive($($macros),*)])*
         pub struct $name {
-            $(#[$field_macro_name($field_macro_key = $field_macro_value)])*
+            $(#[$field_macro_name($field_macro_key $(= $field_macro_value)?)])*
             $(pub $field: $t),*
         }
     }

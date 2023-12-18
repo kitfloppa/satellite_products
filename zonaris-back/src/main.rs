@@ -16,7 +16,7 @@ use persistence::model::satellite_instrument::SatelliteInstrument;
 use service::celestrak::CelestrakServiceDefault;
 use service::instrument_data::InstrumentDataServiceDefault;
 use service::oceancolor::{OceanColorJobSettings, OceanColorServiceDefault};
-use service::satellite::SatelliteServiceMock;
+use service::satellite::SatelliteServiceDefault;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio_cron_scheduler::JobScheduler;
@@ -179,7 +179,7 @@ async fn main() -> Result<()> {
     };
 
     // construct services
-    let satellite_service = Arc::new(SatelliteServiceMock::new(satellite_repository.clone()));
+    let satellite_service = Arc::new(SatelliteServiceDefault::new(satellite_repository.clone()));
 
     let celestrak_service = Arc::new(CelestrakServiceDefault::new());
 
@@ -245,14 +245,12 @@ async fn main() -> Result<()> {
 #[openapi(
     paths(
         crate::controller::instrument_data::get_by_satellite_id,
-        // crate::controller::instrument_data::get_asset,
+        crate::controller::instrument_data::get_asset,
         crate::controller::satellite::get_all,
     ),
-    components(
-        schemas(
-            crate::dto::instrument_data::InstrumentDataResponse,
-            crate::dto::satellite::SatelliteResponse
-        )
-    )
+    components(schemas(
+        crate::dto::instrument_data::InstrumentDataResponse,
+        crate::dto::satellite::SatelliteResponse
+    ))
 )]
 struct ApiDoc;
