@@ -1,8 +1,5 @@
 use std::sync::Arc;
 
-#[cfg(feature = "diesel")]
-use diesel_async::pooled_connection::AsyncDieselConnectionManager;
-
 use axum::Router;
 use tokio_cron_scheduler::JobScheduler;
 
@@ -14,15 +11,10 @@ use crate::{
         },
         Repository,
     },
-    service::{InstrumentDataService, OceanColorService, SatelliteService, CelestrakService},
+    service::{CelestrakService, InstrumentDataService, OceanColorService, SatelliteService},
 };
 
 pub struct AppContext {
-    #[cfg(feature = "diesel")]
-    pub pool: tokio::sync::Mutex<
-        deadpool::managed::Pool<AsyncDieselConnectionManager<diesel_async::AsyncPgConnection>>,
-    >,
-
     pub satellite_repository: Repository<Satellite>,
     pub instrument_repository: Repository<Instrument>,
     pub satellite_instrument_repository: Repository<SatelliteInstrument>,

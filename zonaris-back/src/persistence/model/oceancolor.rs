@@ -9,7 +9,7 @@ pub type DataId = i32;
 crate::pub_fields! {
     #[derive(Clone, Table)]
     struct OceanColorMapping {
-        id: Option<Id>,
+        #[id] id: Option<Id>,
         satellite_instrument_id: Id, // reference SatelliteInstrument.id
         sensor_id: SensorId,
         data_id: DataId,
@@ -24,15 +24,5 @@ impl OceanColorMapping {
             sensor_id,
             data_id,
         };
-    }
-}
-
-impl HasId for OceanColorMapping {
-    fn get_id(&self) -> Option<Id> {
-        return self.id;
-    }
-
-    fn set_id(&mut self, id: Id) {
-        self.id = Some(id);
     }
 }

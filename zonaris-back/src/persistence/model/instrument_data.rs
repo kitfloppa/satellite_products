@@ -5,19 +5,9 @@ use crate::persistence::repository::{HasId, Id};
 crate::pub_fields! {
     #[derive(Clone, Table)]
     struct InstrumentData {
-        id: Option<Id>,
+        #[id] id: Option<Id>,
         satellite_instrument_id: i32, // reference SatelliteInstrument.id
         path: String,
-    }
-}
-
-impl HasId for InstrumentData {
-    fn get_id(&self) -> Option<Id> {
-        return self.id;
-    }
-
-    fn set_id(&mut self, id: Id) {
-        self.id = Some(id);
     }
 }
 

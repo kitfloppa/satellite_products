@@ -1,8 +1,8 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn;
+use syn::{self, Ident};
 
-#[proc_macro_derive(Table)]
+#[proc_macro_derive(Table, attributes(id))]
 pub fn table_macro_derive(input: TokenStream) -> TokenStream {
     let ast = syn::parse(input).unwrap();
     impl_table_macro(&ast)
@@ -11,6 +11,8 @@ pub fn table_macro_derive(input: TokenStream) -> TokenStream {
 fn impl_table_macro(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
 
+    let mut id: Option<&Ident> = None;
+
     let mut fields_from_row = Vec::new();
     let mut to_col_val_pairs = Vec::new();
     match &ast.data {
@@ -18,8 +20,12 @@ fn impl_table_macro(ast: &syn::DeriveInput) -> TokenStream {
             for field in &data_struct.fields {
                 match &field.ident {
                     Some(ident) => {
-                        if ident == "id" {
-                            continue;
+                        if field
+                            .attrs
+                            .iter()
+                            .any(|it| it.path.get_ident().map(|it| it == "id").unwrap_or(false))
+                        {
+                            id = Some(ident);
                         }
 
                         let ident_string = ident.to_string();
@@ -35,7 +41,25 @@ fn impl_table_macro(ast: &syn::DeriveInput) -> TokenStream {
         _ => panic!("not supported"),
     }
 
+    let gen_hasid = if let Some(ident) = id {
+        quote! {
+            impl HasId for #name {
+                fn get_id(&self) -> Option<Id> {
+                    return self.#ident;
+                }
+
+                fn set_id(&mut self, id: Id) {
+                    self.#ident = Some(id);
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     let gen = quote! {
+        #gen_hasid
+
         #[cfg(feature = "postgres")]
         use tokio_postgres::Row;
 
@@ -55,7 +79,6 @@ fn impl_table_macro(ast: &syn::DeriveInput) -> TokenStream {
                     .collect::<std::collections::HashMap<_, _>>();
 
                 return Ok(Self {
-                    id: Some(row.get(columns["id"])),
                     #( #fields_from_row, )*
                 });
             }
@@ -67,9 +90,6 @@ fn impl_table_macro(ast: &syn::DeriveInput) -> TokenStream {
 
             fn try_into(self) -> anyhow::Result<Vec<ColumnValuePair>> {
                 let mut r = Vec::new();
-                if let Some(id) = self.id {
-                    r.push(ColumnValuePair::new("id", id));
-                }
 
                 #( #to_col_val_pairs )*
 

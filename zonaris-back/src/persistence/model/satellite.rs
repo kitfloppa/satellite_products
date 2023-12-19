@@ -9,20 +9,10 @@ use crate::{
 pub_fields! {
     #[derive(Clone, Table)]
     struct Satellite {
-        id: Option<Id>,
+        #[id] id: Option<Id>,
         name: String,
         tle1: String,
         tle2: String,
-    }
-}
-
-impl HasId for Satellite {
-    fn get_id(&self) -> Option<Id> {
-        return self.id;
-    }
-
-    fn set_id(&mut self, id: Id) {
-        self.id = Some(id);
     }
 }
 

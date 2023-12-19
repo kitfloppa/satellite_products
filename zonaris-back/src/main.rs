@@ -217,8 +217,6 @@ async fn main() -> Result<()> {
 
     // startup application
     let app_context = Arc::new(routes::AppContext {
-        #[cfg(feature = "diesel")]
-        pool,
         satellite_service,
         celestrak_service,
         oceancolor_service,
