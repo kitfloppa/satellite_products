@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, marker::PhantomData, ops::Deref};
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -8,6 +8,49 @@ pub type Id = i32;
 pub trait HasId {
     fn get_id(&self) -> Option<Id>;
     fn set_id(&mut self, id: Id);
+}
+
+pub struct Reference<T: HasId> {
+    id: Id,
+    marker: PhantomData<T>,
+}
+
+impl<T: HasId> Reference<T> {
+    pub fn new(id: Id) -> Self {
+        return Self {
+            id,
+            marker: PhantomData,
+        };
+    }
+
+    pub async fn resolve<R: Repository<T>>(&self, repository: &R) -> Result<Option<T>> {
+        return repository.get(self.id).await;
+    }
+}
+
+impl<T: HasId> Clone for Reference<T> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id.clone(),
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<T: HasId> Copy for Reference<T> {}
+
+impl<T: HasId> Deref for Reference<T> {
+    type Target = Id;
+
+    fn deref(&self) -> &Self::Target {
+        return &self.id;
+    }
+}
+
+impl<T: HasId> PartialEq<Id> for Reference<T> {
+    fn eq(&self, other: &Id) -> bool {
+        return self.id.eq(other);
+    }
 }
 
 // TODO: replace bool-s with Result<(), RepositoryError>

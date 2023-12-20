@@ -136,7 +136,7 @@ impl OceanColorServiceDefault {
                 let img_path = format!("{}/{}_{}.png", base_path, fileset, idx);
                 img.save(&img_path)?;
 
-                let satellite_data = InstrumentData::new(mapping.satellite_instrument_id, img_path);
+                let satellite_data = InstrumentData::new(*mapping.satellite_instrument_id, img_path);
                 if !oceancolor_service
                     .instrument_data_service
                     .add_data(satellite_data)
