@@ -14,7 +14,7 @@ crate::pub_fields! {
 }
 
 impl InstrumentData {
-    pub fn new(satellite_instrument_id: i32, path: String) -> Self {
+    pub fn new(satellite_instrument_id: Id, path: String) -> Self {
         return Self {
             id: None,
             satellite_instrument_id: Reference::new(satellite_instrument_id),

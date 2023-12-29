@@ -1,11 +1,18 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{self, Ident};
+use syn::{self, Field, Ident};
 
 #[proc_macro_derive(Table, attributes(id))]
 pub fn table_macro_derive(input: TokenStream) -> TokenStream {
     let ast = syn::parse(input).unwrap();
     impl_table_macro(&ast)
+}
+
+fn is_id(field: &Field) -> bool {
+    return field
+        .attrs
+        .iter()
+        .any(|it| it.path.get_ident().map(|it| it == "id").unwrap_or(false));
 }
 
 fn impl_table_macro(ast: &syn::DeriveInput) -> TokenStream {
@@ -20,16 +27,14 @@ fn impl_table_macro(ast: &syn::DeriveInput) -> TokenStream {
             for field in &data_struct.fields {
                 match &field.ident {
                     Some(ident) => {
-                        if field
-                            .attrs
-                            .iter()
-                            .any(|it| it.path.get_ident().map(|it| it == "id").unwrap_or(false))
-                        {
-                            id = Some(ident);
-                        }
-
                         let ident_string = ident.to_string();
                         fields_from_row.push(quote! { #ident: row.get(columns[#ident_string]) });
+
+                        if is_id(field) {
+                            id = Some(ident);
+                            continue; // NOTE: id shouldn't be in "update" queries
+                        }
+
                         to_col_val_pairs.push(
                             quote!( r.push(ColumnValuePair::new(#ident_string, self.#ident)); ),
                         );
