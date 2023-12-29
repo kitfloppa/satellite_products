@@ -6,7 +6,7 @@ use chrono::prelude::*;
 use image::ImageBuffer;
 use log::{error, info};
 use reqwest::redirect::{DefaultFilter, Filter};
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tokio_cron_scheduler::Job;
 
 use crate::{
@@ -47,55 +47,44 @@ pub trait OceanColorService {
     async fn get(&self, item: SearchItem) -> Result<ImageBuffer<image::Rgba<u8>, Vec<u8>>>;
 }
 
-pub struct OceanColorServiceDefault {
-    oceancolor_authorization: String,
+pub struct OceanColorJob {
+    time_step: std::time::Duration,
+    not_found_duration: chrono::Duration,
+    last_date: Option<NaiveDateTime>,
     oceancolor_mapping_repository: Repository<OceanColorMapping>,
     instrument_data_service: InstrumentDataService,
+    ocean_color_service: super::OceanColorService,
 }
 
-struct JobState {
-    last_date: Option<NaiveDateTime>,
-}
-
-impl JobState {
-    fn new() -> JobState {
-        return JobState { last_date: None };
-    }
-}
-
-pub struct OceanColorJobSettings {
-    pub time_step: std::time::Duration,
-    pub not_found_duration: chrono::Duration,
-}
-
-impl OceanColorServiceDefault {
+impl OceanColorJob {
     pub fn new(
-        oceancolor_authorization: String,
+        time_step: std::time::Duration,
+        not_found_duration: chrono::Duration,
         oceancolor_mapping_repository: Repository<OceanColorMapping>,
         instrument_data_service: InstrumentDataService,
-    ) -> OceanColorServiceDefault {
-        return OceanColorServiceDefault {
-            oceancolor_authorization,
+        ocean_color_service: super::OceanColorService,
+    ) -> Self {
+        return Self {
+            time_step,
+            not_found_duration,
+            last_date: None,
             oceancolor_mapping_repository,
             instrument_data_service,
+            ocean_color_service,
         };
     }
 
-    async fn job_func(
-        oceancolor_service: Arc<OceanColorServiceDefault>,
-        job_state: Arc<Mutex<JobState>>,
-        settings: Arc<OceanColorJobSettings>,
-    ) -> Result<()> {
+    async fn job_func(job_state: Arc<RwLock<OceanColorJob>>) -> Result<()> {
         let edate = Utc::now().naive_utc();
 
         let sdate = {
-            let mut job_state = job_state.lock().await;
+            let mut job_state = job_state.write().await;
 
             let r = if let Some(last_date) = job_state.last_date {
                 last_date
             } else {
                 Utc::now()
-                    .checked_sub_signed(settings.not_found_duration)
+                    .checked_sub_signed(job_state.not_found_duration)
                     .unwrap()
                     .naive_utc()
             };
@@ -105,17 +94,22 @@ impl OceanColorServiceDefault {
             r
         };
 
-        let mappings = {
-            let lock = oceancolor_service
-                .oceancolor_mapping_repository
-                .read()
-                .await;
-
-            lock.get_all().await?
-        };
+        let mappings = job_state
+            .read()
+            .await
+            .oceancolor_mapping_repository
+            .read()
+            .await
+            .get_all()
+            .await?;
 
         for mapping in mappings {
-            let items = oceancolor_service.search(sdate, edate, &mapping).await?;
+            let items = job_state
+                .read()
+                .await
+                .ocean_color_service
+                .search(sdate, edate, &mapping)
+                .await?;
 
             info!(
                 "found {} items in range ({}; {})",
@@ -132,12 +126,15 @@ impl OceanColorServiceDefault {
             std::fs::create_dir_all(&base_path)?;
 
             for (idx, item) in items.into_iter().enumerate() {
-                let img = oceancolor_service.get(item).await?;
+                let img = job_state.read().await.ocean_color_service.get(item).await?;
                 let img_path = format!("{}/{}_{}.png", base_path, fileset, idx);
                 img.save(&img_path)?;
 
-                let satellite_data = InstrumentData::new(*mapping.satellite_instrument_id, img_path);
-                if !oceancolor_service
+                let satellite_data =
+                    InstrumentData::new(*mapping.satellite_instrument_id, img_path);
+                if !job_state
+                    .read()
+                    .await
                     .instrument_data_service
                     .add_data(satellite_data)
                     .await?
@@ -150,22 +147,15 @@ impl OceanColorServiceDefault {
         return Ok(());
     }
 
-    // TODO: i think it can be located in trait
-    pub fn create_job(self: &Arc<Self>, settings: OceanColorJobSettings) -> Result<Job> {
-        let oceancolor_service = self.clone();
-        let job_state = Arc::new(Mutex::new(JobState::new()));
-        let settings = Arc::new(settings);
+    pub fn create_job(self) -> Result<Job> {
+        let time_step = self.time_step;
+        let job_state = Arc::new(RwLock::new(self));
 
-        let job = Job::new_repeated_async(settings.time_step, move |_uuid, _job_scheduler| {
-            let oceancolor_service = oceancolor_service.clone();
+        let job = Job::new_repeated_async(time_step, move |_uuid, _job_scheduler| {
             let job_state = job_state.clone();
-            let settings = settings.clone();
 
             return Box::pin(async move {
-                if let Err(err) =
-                    OceanColorServiceDefault::job_func(oceancolor_service, job_state, settings)
-                        .await
-                {
+                if let Err(err) = OceanColorJob::job_func(job_state).await {
                     error!("{}\n{}", err, err.backtrace());
                 }
             });
@@ -224,6 +214,18 @@ where
     }
 }
 
+pub struct OceanColorServiceDefault {
+    ocean_color_authorization: String,
+}
+
+impl OceanColorServiceDefault {
+    pub fn new(ocean_color_authorization: &str) -> OceanColorServiceDefault {
+        return OceanColorServiceDefault {
+            ocean_color_authorization: String::from(ocean_color_authorization),
+        };
+    }
+}
+
 #[async_trait]
 impl OceanColorService for OceanColorServiceDefault {
     async fn search(
@@ -278,7 +280,7 @@ impl OceanColorService for OceanColorServiceDefault {
 
         let mut authorization_header_value = reqwest::header::HeaderValue::from_str(&format!(
             "Basic {}",
-            self.oceancolor_authorization
+            self.ocean_color_authorization
         ))?;
         authorization_header_value.set_sensitive(true);
 

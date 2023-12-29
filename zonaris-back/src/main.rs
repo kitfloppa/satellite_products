@@ -15,7 +15,7 @@ use persistence::model::satellite::Satellite;
 use persistence::model::satellite_instrument::SatelliteInstrument;
 use service::celestrak::CelestrakServiceDefault;
 use service::instrument_data::InstrumentDataServiceDefault;
-use service::oceancolor::{OceanColorJobSettings, OceanColorServiceDefault};
+use service::oceancolor::OceanColorServiceDefault;
 use service::satellite::SatelliteServiceDefault;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -29,6 +29,7 @@ use persistence::create_inmemory_repository;
 #[cfg(feature = "postgres")]
 use tokio::sync::Mutex;
 
+use crate::service::oceancolor::OceanColorJob;
 #[cfg(feature = "postgres")]
 use persistence::postgres::{create_postgres_repository, migration::migrate};
 
@@ -188,11 +189,7 @@ async fn main() -> Result<()> {
         instrument_data_repository.clone(),
     ));
 
-    let oceancolor_service = Arc::new(OceanColorServiceDefault::new(
-        oceancolor_authorization,
-        oceancolor_mapping_repository.clone(),
-        instrument_data_service.clone(),
-    ));
+    let ocean_color_service = Arc::new(OceanColorServiceDefault::new(&oceancolor_authorization));
 
     // add test data
     add_test_data(
@@ -207,11 +204,15 @@ async fn main() -> Result<()> {
     // setup job scheduler
     let job_scheduler = JobScheduler::new().await?;
 
-    let oceancolor_job = oceancolor_service.create_job(OceanColorJobSettings {
-        time_step: std::time::Duration::from_secs(oceancolor_job_timestep),
-        not_found_duration: chrono::Duration::seconds(oceancolor_job_notfound),
-    })?;
-    job_scheduler.add(oceancolor_job).await?;
+    let ocean_color_job = OceanColorJob::new(
+        std::time::Duration::from_secs(oceancolor_job_timestep),
+        chrono::Duration::seconds(oceancolor_job_notfound),
+        oceancolor_mapping_repository.clone(),
+        instrument_data_service.clone(),
+        ocean_color_service.clone(),
+    )
+    .create_job()?;
+    job_scheduler.add(ocean_color_job).await?;
 
     job_scheduler.start().await?;
 
@@ -219,7 +220,7 @@ async fn main() -> Result<()> {
     let app_context = Arc::new(routes::AppContext {
         satellite_service,
         celestrak_service,
-        oceancolor_service,
+        oceancolor_service: ocean_color_service,
         satellite_repository,
         instrument_repository,
         satellite_instrument_repository,
