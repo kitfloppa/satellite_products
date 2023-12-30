@@ -1,10 +1,17 @@
 use std::collections::HashMap;
+use std::str::FromStr;
+use std::sync::Arc;
 
+use super::job::Job;
+use crate::persistence::model::satellite::Satellite;
+use crate::persistence::Repository;
+use crate::pub_fields;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use itertools::Itertools;
+use log::{error, info, warn};
 use thiserror::Error;
-
-use crate::pub_fields;
+use tokio::sync::RwLock;
 
 pub enum Query {
     /// Catalog Number (1 to 9 digits). Allows return of data for a single catalog number.
@@ -40,6 +47,10 @@ impl TLE {
             tle2: String::from(tle2),
         };
     }
+
+    pub fn get_catnr(&self) -> Result<u32> {
+        return Ok(u32::from_str(&self.tle1[2..7])?);
+    }
 }
 
 #[derive(Error, Debug)]
@@ -53,6 +64,70 @@ pub enum CelestrakError {
 #[async_trait]
 pub trait CelestrakService {
     async fn gp_query(&self, query: Query) -> Result<Vec<TLE>>;
+}
+
+pub struct CelestrakJob {
+    celestrak_service: super::CelestrakService,
+    satellite_repository: Repository<Satellite>,
+}
+
+impl CelestrakJob {
+    pub fn new(
+        celestrak_service: super::CelestrakService,
+        satellite_repository: Repository<Satellite>,
+    ) -> Self {
+        return Self {
+            celestrak_service,
+            satellite_repository,
+        };
+    }
+}
+
+#[async_trait]
+impl Job for CelestrakJob {
+    // TODO: it can be optimized
+    async fn job_func(ctx: Arc<RwLock<Self>>) -> Result<()> {
+        let satellites = ctx
+            .read()
+            .await
+            .satellite_repository
+            .read()
+            .await
+            .get_all()
+            .await?;
+
+        for mut satellite in satellites {
+            if let Some(catnr) = satellite.catnr {
+                let tle = ctx
+                    .read()
+                    .await
+                    .celestrak_service
+                    .gp_query(Query::CATNR(catnr.try_into()?))
+                    .await?
+                    .into_iter()
+                    .exactly_one()?;
+
+                satellite.tle1 = tle.tle1;
+                satellite.tle2 = tle.tle2;
+
+                if !ctx
+                    .read()
+                    .await
+                    .satellite_repository
+                    .write()
+                    .await
+                    .update(satellite)
+                    .await?
+                {
+                    warn!("catnr({}) not updated", catnr);
+                } else {
+                    info!("catnr({}) updated", catnr);
+                }
+            }
+        }
+
+        return Ok(());
+    }
 }
 
 pub struct CelestrakServiceDefault {}

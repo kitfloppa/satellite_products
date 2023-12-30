@@ -19,6 +19,9 @@ pub async fn init_db(client: &Client) -> Result<()> {
     (
         id SERIAL PRIMARY KEY,
         name VARCHAR NOT NULL,
+
+        catnr BIGINT NULL DEFAULT NULL,
+
         tle1 VARCHAR NOT NULL,
         tle2 VARCHAR NOT NULL
     );";

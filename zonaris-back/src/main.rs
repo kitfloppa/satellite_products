@@ -15,6 +15,7 @@ use persistence::model::satellite::Satellite;
 use persistence::model::satellite_instrument::SatelliteInstrument;
 use service::celestrak::CelestrakServiceDefault;
 use service::instrument_data::InstrumentDataServiceDefault;
+use service::job::Job;
 use service::oceancolor::OceanColorServiceDefault;
 use service::satellite::SatelliteServiceDefault;
 use std::net::SocketAddr;
@@ -29,6 +30,7 @@ use persistence::create_inmemory_repository;
 #[cfg(feature = "postgres")]
 use tokio::sync::Mutex;
 
+use crate::service::celestrak::CelestrakJob;
 use crate::service::oceancolor::OceanColorJob;
 #[cfg(feature = "postgres")]
 use persistence::postgres::{create_postgres_repository, migration::migrate};
@@ -37,13 +39,13 @@ async fn get_satellite_by_catnr(
     celestrak_service: &service::CelestrakService,
     catnr: u32,
 ) -> Result<Satellite> {
-    return Ok(Satellite::from(
+    return Ok(Satellite::try_from(
         celestrak_service
             .gp_query(service::celestrak::Query::CATNR(catnr))
             .await?
             .into_iter()
             .exactly_one()?,
-    ));
+    )?);
 }
 
 async fn add_test_data(
@@ -121,6 +123,8 @@ async fn main() -> Result<()> {
     let oceancolor_authorization = std::env::var("OCEANCOLOR_AUTHORIZATION")?;
     let oceancolor_job_timestep = std::env::var("OCEANCOLOR_JOB_TIMESTEP")?.parse::<u64>()?;
     let oceancolor_job_notfound = std::env::var("OCEANCOLOR_JOB_NOTFOUND")?.parse::<i64>()?;
+
+    let celestrak_job_timestep = std::env::var("CELESTRAK_JOB_TIMESTEP")?.parse::<u64>()?;
 
     // config connection with database
     #[cfg(feature = "postgres")]
@@ -204,14 +208,17 @@ async fn main() -> Result<()> {
     // setup job scheduler
     let job_scheduler = JobScheduler::new().await?;
 
+    let celestrak_job = CelestrakJob::new(celestrak_service.clone(), satellite_repository.clone())
+        .create_job(std::time::Duration::from_secs(celestrak_job_timestep))?;
+    job_scheduler.add(celestrak_job).await?;
+
     let ocean_color_job = OceanColorJob::new(
-        std::time::Duration::from_secs(oceancolor_job_timestep),
         chrono::Duration::seconds(oceancolor_job_notfound),
         oceancolor_mapping_repository.clone(),
         instrument_data_service.clone(),
         ocean_color_service.clone(),
     )
-    .create_job()?;
+    .create_job(std::time::Duration::from_secs(oceancolor_job_timestep))?;
     job_scheduler.add(ocean_color_job).await?;
 
     job_scheduler.start().await?;

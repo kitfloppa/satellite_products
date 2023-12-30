@@ -1,3 +1,4 @@
+use anyhow::{Error, Result};
 use table_macro::Table;
 
 use crate::{
@@ -11,29 +12,35 @@ pub_fields! {
     struct Satellite {
         #[id] id: Option<Id>,
         name: String,
+
+        catnr: Option<i64>, // Satellite Catalog Number
+
+        // TODO: make optional and maybe transfer to other table
         tle1: String,
         tle2: String,
     }
 }
 
 impl Satellite {
-    pub fn new(name: &str, tle1: &str, tle2: &str) -> Self {
-        return Self {
-            id: None,
-            name: String::from(name),
-            tle1: String::from(tle1),
-            tle2: String::from(tle2),
-        };
+    // TODO: make tle optional
+    pub fn new(name: &str, tle1: &str, tle2: &str) -> Result<Self> {
+        return Satellite::try_from(TLE::new(name, tle1, tle2));
     }
 }
 
-impl From<TLE> for Satellite {
-    fn from(tle: TLE) -> Self {
-        return Self {
+impl TryFrom<TLE> for Satellite {
+    type Error = Error;
+
+    fn try_from(tle: TLE) -> Result<Self> {
+        let catnr = tle.get_catnr()?;
+        return Ok(Self {
             id: None,
             name: tle.name,
+
+            catnr: Some(catnr.try_into()?),
+
             tle1: tle.tle1,
             tle2: tle.tle2,
-        };
+        });
     }
 }

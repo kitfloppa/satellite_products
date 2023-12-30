@@ -7,7 +7,6 @@ use image::ImageBuffer;
 use log::{error, info};
 use reqwest::redirect::{DefaultFilter, Filter};
 use tokio::sync::RwLock;
-use tokio_cron_scheduler::Job;
 
 use crate::{
     persistence::{
@@ -17,6 +16,7 @@ use crate::{
     utils::geophysical_data::GeophysicalData,
 };
 
+use super::job::Job;
 use super::InstrumentDataService;
 
 pub struct SearchItem(String);
@@ -48,7 +48,6 @@ pub trait OceanColorService {
 }
 
 pub struct OceanColorJob {
-    time_step: std::time::Duration,
     not_found_duration: chrono::Duration,
     last_date: Option<NaiveDateTime>,
     oceancolor_mapping_repository: Repository<OceanColorMapping>,
@@ -58,14 +57,12 @@ pub struct OceanColorJob {
 
 impl OceanColorJob {
     pub fn new(
-        time_step: std::time::Duration,
         not_found_duration: chrono::Duration,
         oceancolor_mapping_repository: Repository<OceanColorMapping>,
         instrument_data_service: InstrumentDataService,
         ocean_color_service: super::OceanColorService,
     ) -> Self {
         return Self {
-            time_step,
             not_found_duration,
             last_date: None,
             oceancolor_mapping_repository,
@@ -73,12 +70,15 @@ impl OceanColorJob {
             ocean_color_service,
         };
     }
+}
 
-    async fn job_func(job_state: Arc<RwLock<OceanColorJob>>) -> Result<()> {
+#[async_trait]
+impl Job for OceanColorJob {
+    async fn job_func(ctx: Arc<RwLock<Self>>) -> Result<()> {
         let edate = Utc::now().naive_utc();
 
         let sdate = {
-            let mut job_state = job_state.write().await;
+            let mut job_state = ctx.write().await;
 
             let r = if let Some(last_date) = job_state.last_date {
                 last_date
@@ -94,7 +94,7 @@ impl OceanColorJob {
             r
         };
 
-        let mappings = job_state
+        let mappings = ctx
             .read()
             .await
             .oceancolor_mapping_repository
@@ -104,7 +104,7 @@ impl OceanColorJob {
             .await?;
 
         for mapping in mappings {
-            let items = job_state
+            let items = ctx
                 .read()
                 .await
                 .ocean_color_service
@@ -126,13 +126,13 @@ impl OceanColorJob {
             std::fs::create_dir_all(&base_path)?;
 
             for (idx, item) in items.into_iter().enumerate() {
-                let img = job_state.read().await.ocean_color_service.get(item).await?;
+                let img = ctx.read().await.ocean_color_service.get(item).await?;
                 let img_path = format!("{}/{}_{}.png", base_path, fileset, idx);
                 img.save(&img_path)?;
 
                 let satellite_data =
                     InstrumentData::new(*mapping.satellite_instrument_id, img_path);
-                if !job_state
+                if !ctx
                     .read()
                     .await
                     .instrument_data_service
@@ -145,23 +145,6 @@ impl OceanColorJob {
         }
 
         return Ok(());
-    }
-
-    pub fn create_job(self) -> Result<Job> {
-        let time_step = self.time_step;
-        let job_state = Arc::new(RwLock::new(self));
-
-        let job = Job::new_repeated_async(time_step, move |_uuid, _job_scheduler| {
-            let job_state = job_state.clone();
-
-            return Box::pin(async move {
-                if let Err(err) = OceanColorJob::job_func(job_state).await {
-                    error!("{}\n{}", err, err.backtrace());
-                }
-            });
-        })?;
-
-        return Ok(job);
     }
 }
 
