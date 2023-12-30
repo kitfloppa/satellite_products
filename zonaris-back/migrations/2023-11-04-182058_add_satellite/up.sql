@@ -1,6 +1,0 @@
-CREATE TABLE satellites (
-    id SERIAl PRIMARY KEY,
-    name VARCHAR NOT NULL,
-    tle1 VARCHAR NULL,
-    tle2 VARCHAR NULL
-)

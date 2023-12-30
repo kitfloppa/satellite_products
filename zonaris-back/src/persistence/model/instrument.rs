@@ -1,9 +1,11 @@
+use table_macro::Table;
+
 use crate::persistence::repository::{HasId, Id};
 
 crate::pub_fields! {
-    #[derive(Clone)]
+    #[derive(Clone, Table)]
     struct Instrument {
-        id: Option<Id>,
+        #[id] id: Option<Id>,
         name: String,
     }
 }
@@ -14,15 +16,5 @@ impl Instrument {
             id: None,
             name: String::from(name),
         };
-    }
-}
-
-impl HasId for Instrument {
-    fn get_id(&self) -> Option<Id> {
-        return self.id;
-    }
-
-    fn set_id(&mut self, id: Id) {
-        self.id = Some(id);
     }
 }

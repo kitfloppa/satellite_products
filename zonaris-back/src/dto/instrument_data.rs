@@ -18,9 +18,14 @@ pub_fields! {
 pub struct InstrumentDataResponse {
     #[schema(value_type = i32)]
     id: Id,
-    path: String,
 }
 
-mapper!(InstrumentData, InstrumentDataResponse, {
-    path -> path,
-});
+mapper!(InstrumentData, InstrumentDataResponse, {});
+
+pub_fields! {
+    #[derive(Deserialize, IntoParams)]
+    struct GetAssetRequest {
+        #[param(value_type = i32)] // TODO: because Id not actuall type it's imposible for it implement ToSchema
+        id: Id,
+    }
+}

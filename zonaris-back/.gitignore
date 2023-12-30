@@ -17,3 +17,6 @@ Cargo.lock
 .env
 
 images/
+
+.vscode/
+.idea/

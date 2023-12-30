@@ -1,5 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, marker::PhantomData, ops::Deref};
 
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 
 pub type Id = i32;
@@ -9,6 +10,49 @@ pub trait HasId {
     fn set_id(&mut self, id: Id);
 }
 
+pub struct Reference<T: HasId> {
+    id: Id,
+    marker: PhantomData<T>,
+}
+
+impl<T: HasId> Reference<T> {
+    pub fn new(id: Id) -> Self {
+        return Self {
+            id,
+            marker: PhantomData,
+        };
+    }
+
+    pub async fn resolve<R: Repository<T>>(&self, repository: &R) -> Result<Option<T>> {
+        return repository.get(self.id).await;
+    }
+}
+
+impl<T: HasId> Clone for Reference<T> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id.clone(),
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<T: HasId> Copy for Reference<T> {}
+
+impl<T: HasId> Deref for Reference<T> {
+    type Target = Id;
+
+    fn deref(&self) -> &Self::Target {
+        return &self.id;
+    }
+}
+
+impl<T: HasId> PartialEq<Id> for Reference<T> {
+    fn eq(&self, other: &Id) -> bool {
+        return self.id.eq(other);
+    }
+}
+
 // TODO: replace bool-s with Result<(), RepositoryError>
 #[async_trait]
 pub trait Repository<T>
@@ -16,19 +60,19 @@ where
     T: HasId,
 {
     /// Some(T) if record with given id found else None
-    async fn get(&self, id: Id) -> Option<T>;
+    async fn get(&self, id: Id) -> Result<Option<T>>;
 
     /// true if successfully added or if it's impossible to determine status of operation else false (for example in case when entity already with same key already in repository)
-    async fn add(&mut self, entity: T) -> bool;
+    async fn add(&mut self, entity: T) -> Result<Option<Id>>;
 
     /// true if successfully deleted or if it's impossible to determine status of operation else false
-    async fn delete(&mut self, id: Id) -> bool;
+    async fn delete(&mut self, id: Id) -> Result<bool>;
 
     /// true if successfully updated or if it's impossible to determine status of operation else false (for example in case when `entity.get_id().is_none()`)
-    async fn update(&mut self, entity: T) -> bool;
+    async fn update(&mut self, entity: T) -> Result<bool>;
 
     // TODO: this function can have performance issue. recomended implementation with pagination (offset, size)
-    async fn get_all(&self) -> Vec<T>;
+    async fn get_all(&self) -> Result<Vec<T>>;
 }
 
 pub struct InMemoryRepository<T>
@@ -113,11 +157,11 @@ where
     T: Clone,
     T: Send + Sync,
 {
-    async fn get(&self, id: Id) -> Option<T> {
-        return self.data.get(&id).cloned();
+    async fn get(&self, id: Id) -> Result<Option<T>> {
+        return Ok(self.data.get(&id).cloned());
     }
 
-    async fn add(&mut self, mut entity: T) -> bool {
+    async fn add(&mut self, mut entity: T) -> Result<Option<Id>> {
         let key = if let Some(id) = entity.get_id() {
             id
         } else {
@@ -125,33 +169,29 @@ where
         };
 
         if self.data.contains_key(&key) {
-            return false;
+            return Err(anyhow!("key already presented"));
         }
 
         entity.set_id(key);
         self.data.insert(key, entity);
-        return true;
+        return Ok(Some(key));
     }
 
-    async fn delete(&mut self, id: Id) -> bool {
-        return self.data.remove(&id).is_some();
+    async fn delete(&mut self, id: Id) -> Result<bool> {
+        return Ok(self.data.remove(&id).is_some());
     }
 
-    async fn update(&mut self, entity: T) -> bool {
-        let key = if let Some(id) = entity.get_id() {
-            id
-        } else {
-            return false;
-        };
-
+    async fn update(&mut self, entity: T) -> Result<bool> {
+        let key = entity.get_id().ok_or(anyhow!("entity doesn't have id"))?;
         if let Some(data) = self.data.get_mut(&key) {
             *data = entity;
+            return Ok(true);
         }
 
-        return true;
+        return Ok(false);
     }
 
-    async fn get_all(&self) -> Vec<T> {
-        return self.data.values().cloned().collect();
+    async fn get_all(&self) -> Result<Vec<T>> {
+        return Ok(self.data.values().cloned().collect());
     }
 }

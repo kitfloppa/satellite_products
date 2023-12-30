@@ -1,36 +1,46 @@
+use anyhow::{Error, Result};
+use table_macro::Table;
+
 use crate::{
     persistence::repository::{HasId, Id},
     pub_fields,
+    service::celestrak::TLE,
 };
-use serde::Serialize;
 
 pub_fields! {
-    #[derive(Clone, Serialize)]
+    #[derive(Clone, Table)]
     struct Satellite {
-        id: Option<Id>,
+        #[id] id: Option<Id>,
         name: String,
+
+        catnr: Option<i64>, // Satellite Catalog Number
+
+        // TODO: make optional and maybe transfer to other table
         tle1: String,
         tle2: String,
     }
 }
 
-impl HasId for Satellite {
-    fn get_id(&self) -> Option<Id> {
-        return self.id;
-    }
-
-    fn set_id(&mut self, id: Id) {
-        self.id = Some(id);
+impl Satellite {
+    // TODO: make tle optional
+    pub fn new(name: &str, tle1: &str, tle2: &str) -> Result<Self> {
+        return Satellite::try_from(TLE::new(name, tle1, tle2));
     }
 }
 
-impl Satellite {
-    pub fn new(name: &str, tle1: &str, tle2: &str) -> Self {
-        Self {
+impl TryFrom<TLE> for Satellite {
+    type Error = Error;
+
+    fn try_from(tle: TLE) -> Result<Self> {
+        let catnr = tle.get_catnr()?;
+        return Ok(Self {
             id: None,
-            name: String::from(name),
-            tle1: String::from(tle1),
-            tle2: String::from(tle2),
-        }
+            name: tle.name,
+
+            catnr: Some(catnr.try_into()?),
+
+            tle1: tle.tle1,
+            tle2: tle.tle2,
+        });
     }
 }
