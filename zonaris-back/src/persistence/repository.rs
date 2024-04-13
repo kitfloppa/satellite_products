@@ -1,9 +1,28 @@
-use std::{collections::HashMap, marker::PhantomData, ops::Deref};
+use std::{
+    collections::HashMap,
+    marker::PhantomData,
+    ops::{AddAssign, Deref},
+};
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
-pub type Id = i32;
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+pub struct Id(i32);
+
+impl AddAssign<i32> for Id {
+    fn add_assign(&mut self, rhs: i32) {
+        self.0 += rhs;
+    }
+}
+
+impl std::fmt::Display for Id {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Id({})", self.0)
+    }
+}
 
 pub trait HasId {
     fn get_id(&self) -> Option<Id>;
@@ -94,7 +113,7 @@ where
     pub fn new() -> InMemoryRepository<T> {
         return InMemoryRepository::<T> {
             data: HashMap::new(),
-            next_id: 0,
+            next_id: Id(0),
         };
     }
 
@@ -115,7 +134,7 @@ where
 {
     fn from(elements: &[T]) -> Self {
         let mut repository = InMemoryRepository::<T>::new();
-        let mut id: Id = 0;
+        let mut id = Id(0);
         for element in elements {
             let mut element = element.clone();
             element.set_id(id);
@@ -137,7 +156,7 @@ where
 {
     fn from(elements: Vec<T>) -> Self {
         let mut repository = InMemoryRepository::<T>::new();
-        let mut id: Id = 0;
+        let mut id = Id(0);
         for mut element in elements {
             element.set_id(id);
             repository.data.insert(id, element);

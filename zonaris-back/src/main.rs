@@ -255,6 +255,7 @@ async fn main() -> Result<()> {
         crate::controller::satellite::get_all,
     ),
     components(schemas(
+        crate::persistence::repository::Id,
         crate::dto::instrument_data::InstrumentDataResponse,
         crate::dto::satellite::SatelliteResponse
     ))

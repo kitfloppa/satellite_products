@@ -9,14 +9,12 @@ use utoipa::{IntoParams, ToSchema};
 pub_fields! {
     #[derive(Deserialize, IntoParams)]
     struct GetBySatelliteIdRequest {
-        #[param(value_type = i32)] // TODO: because Id not actuall type it's imposible for it implement ToSchema
         id: Id,
     }
 }
 
 #[derive(Serialize, ToSchema)]
 pub struct InstrumentDataResponse {
-    #[schema(value_type = i32)]
     id: Id,
 }
 
@@ -25,7 +23,6 @@ mapper!(InstrumentData, InstrumentDataResponse, {});
 pub_fields! {
     #[derive(Deserialize, IntoParams)]
     struct GetAssetRequest {
-        #[param(value_type = i32)] // TODO: because Id not actuall type it's imposible for it implement ToSchema
         id: Id,
     }
 }
