@@ -24,6 +24,12 @@ use tokio_cron_scheduler::JobScheduler;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
+#[cfg(feature = "cors")]
+use axum::http::Method;
+
+#[cfg(feature = "cors")]
+use tower_http::cors::{Any, CorsLayer};
+
 #[cfg(not(feature = "postgres"))]
 use persistence::create_inmemory_repository;
 
@@ -237,8 +243,17 @@ async fn main() -> Result<()> {
         job_scheduler,
     });
 
-    let app = routes::create_router(app_context)
+    let mut app = routes::create_router(app_context)
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()));
+
+    #[cfg(feature = "cors")]
+    {
+        app = app.layer(
+            CorsLayer::new()
+                .allow_methods([Method::GET, Method::POST])
+                .allow_origin(Any),
+        );
+    }
 
     let addr = server_ip.parse::<SocketAddr>()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
