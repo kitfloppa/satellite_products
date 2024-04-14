@@ -5,7 +5,6 @@ use std::sync::Arc;
 use super::job::Job;
 use crate::persistence::Repository;
 use crate::persistence::{model::satellite::Satellite, repository::HasId};
-use crate::pub_fields;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use itertools::Itertools;
@@ -30,13 +29,11 @@ pub enum Query {
     SPECIAL(String),
 }
 
-pub_fields! {
-    #[derive(Debug)]
-    struct TLE {
-        name: String,
-        tle1: String,
-        tle2: String,
-    }
+#[derive(Debug)]
+pub struct TLE {
+    pub name: String,
+    pub tle1: String,
+    pub tle2: String,
 }
 
 impl TLE {
