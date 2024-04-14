@@ -4,7 +4,14 @@ use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{self, Field, Ident};
 
-use crate::utils::contains_attribute;
+use crate::utils::{contains_attribute, is_copy_type};
+
+const SETTER_ATTRIBUTE_NAME: &str = "setter";
+const GETTER_ATTRIBUTE_NAME: &str = "getter";
+const NONE_ATTRIBUTE_NAME: &str = "none";
+
+const SETTER_PREFIX: &str = "set_";
+const GETTER_PREFIX: &str = "get_";
 
 enum PropertyKind {
     Auto,
@@ -31,9 +38,9 @@ fn collect_field_info<'a>(ast: &'a syn::DeriveInput) -> Vec<FieldInfo<'a>> {
                     Some(ident) => {
                         let name = ident.to_string();
 
-                        let is_setter = contains_attribute(field, "setter");
-                        let is_getter = contains_attribute(field, "getter");
-                        let is_none = contains_attribute(field, "none");
+                        let is_setter = contains_attribute(field, SETTER_ATTRIBUTE_NAME);
+                        let is_getter = contains_attribute(field, GETTER_ATTRIBUTE_NAME);
+                        let is_none = contains_attribute(field, NONE_ATTRIBUTE_NAME);
 
                         if is_none && (is_setter || is_getter) {
                             panic!("incorrect attribute usage")
@@ -82,7 +89,7 @@ pub fn impl_property_macro(ast: &syn::DeriveInput) -> TokenStream {
             let field_ident = field_info.field_ident;
 
             let mut name = field_info.name.clone();
-            name.insert_str(0, "set_");
+            name.insert_str(0, SETTER_PREFIX);
 
             let name = Ident::new(name.as_str(), Span::call_site());
             accessors.push(quote! {
@@ -97,13 +104,22 @@ pub fn impl_property_macro(ast: &syn::DeriveInput) -> TokenStream {
             let field_ident = field_info.field_ident;
 
             let mut name = field_info.name.clone();
-            name.insert_str(0, "get_");
+            name.insert_str(0, GETTER_PREFIX);
 
             let name = Ident::new(name.as_str(), Span::call_site());
-            accessors.push(quote! {
+
+            accessors.push(if is_copy_type(return_type) {
+                quote! {
+                    pub fn #name(&self) -> #return_type {
+                        return self.#field_ident;
+                    }
+                }
+            } else {
+                quote! {
                     pub fn #name(&self) -> &#return_type {
                         return &self.#field_ident;
                     }
+                }
             });
         }
 

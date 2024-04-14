@@ -4,6 +4,8 @@ use syn::{self, Ident};
 
 use crate::utils::contains_attribute;
 
+const ID_ATTRIBUTE_NAME: &str = "id";
+
 pub fn impl_table_macro(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
 
@@ -19,7 +21,7 @@ pub fn impl_table_macro(ast: &syn::DeriveInput) -> TokenStream {
                         let ident_string = ident.to_string();
                         fields_from_row.push(quote! { #ident: row.get(columns[#ident_string]) });
 
-                        if contains_attribute(field, "id") {
+                        if contains_attribute(field, ID_ATTRIBUTE_NAME) {
                             id = Some(ident);
                             continue; // NOTE: id shouldn't be in "update" queries
                         }
