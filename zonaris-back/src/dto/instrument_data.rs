@@ -1,16 +1,15 @@
+use crate::persistence::repository::HasId;
 use crate::{
     mapper,
     persistence::{model::instrument_data::InstrumentData, repository::Id},
-    pub_fields,
 };
 use serde::{Deserialize, Serialize};
+use table_macro::Property;
 use utoipa::{IntoParams, ToSchema};
 
-pub_fields! {
-    #[derive(Deserialize, IntoParams)]
-    struct GetBySatelliteIdRequest {
-        id: Id,
-    }
+#[derive(Deserialize, IntoParams, Property)]
+pub struct GetBySatelliteIdRequest {
+    id: Id,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -20,9 +19,7 @@ pub struct InstrumentDataResponse {
 
 mapper!(InstrumentData, InstrumentDataResponse, {});
 
-pub_fields! {
-    #[derive(Deserialize, IntoParams)]
-    struct GetAssetRequest {
-        id: Id,
-    }
+#[derive(Deserialize, IntoParams, Property)]
+pub struct GetAssetRequest {
+    id: Id,
 }

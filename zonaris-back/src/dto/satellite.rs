@@ -3,6 +3,7 @@ use crate::{
     persistence::{model::satellite::Satellite, repository::Id},
 };
 
+use crate::persistence::repository::HasId;
 use serde::Serialize;
 use utoipa::ToSchema;
 
@@ -16,7 +17,7 @@ pub struct SatelliteResponse {
 }
 
 mapper!(Satellite, SatelliteResponse, {
-    name -> name,
-    tle1 -> tle1,
-    tle2 -> tle2,
+    get_name -> name,
+    get_tle1 -> tle1,
+    get_tle2 -> tle2,
 });

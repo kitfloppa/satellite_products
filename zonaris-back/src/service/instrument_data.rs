@@ -5,7 +5,7 @@ use async_trait::async_trait;
 
 use crate::persistence::{
     model::{instrument_data::InstrumentData, satellite_instrument::SatelliteInstrument},
-    repository::Id,
+    repository::{HasId, Id},
     Repository,
 };
 
@@ -52,8 +52,8 @@ impl InstrumentDataService for InstrumentDataServiceDefault {
             lock.get_all()
                 .await?
                 .into_iter()
-                .filter(|it| it.satellite_id == satellite_id)
-                .filter_map(|it| it.id)
+                .filter(|it| *it.get_satellite_id() == satellite_id)
+                .filter_map(|it| it.get_id())
                 .collect::<HashSet<_>>()
         };
 
@@ -62,7 +62,7 @@ impl InstrumentDataService for InstrumentDataServiceDefault {
             .get_all()
             .await?
             .into_iter()
-            .filter(|it| satellite_instrument_ids.contains(&it.satellite_instrument_id))
+            .filter(|it| satellite_instrument_ids.contains(it.get_satellite_instrument_id()))
             .collect());
     }
 }

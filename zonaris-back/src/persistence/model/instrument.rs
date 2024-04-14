@@ -1,13 +1,13 @@
-use table_macro::Table;
+use table_macro::{Property, Table};
 
-use crate::persistence::repository::{HasId, Id};
+use crate::persistence::repository::Id;
 
-crate::pub_fields! {
-    #[derive(Clone, Table)]
-    struct Instrument {
-        #[id] id: Option<Id>,
-        name: String,
-    }
+#[derive(Clone, Table, Property)]
+pub struct Instrument {
+    #[id]
+    #[none]
+    id: Option<Id>,
+    name: String,
 }
 
 impl Instrument {

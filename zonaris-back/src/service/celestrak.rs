@@ -3,13 +3,13 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use super::job::Job;
-use crate::persistence::model::satellite::Satellite;
 use crate::persistence::Repository;
+use crate::persistence::{model::satellite::Satellite, repository::HasId};
 use crate::pub_fields;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use itertools::Itertools;
-use log::{error, info, warn};
+use log::{error, info, trace, warn};
 use thiserror::Error;
 use tokio::sync::RwLock;
 
@@ -97,32 +97,36 @@ impl Job for CelestrakJob {
             .await?;
 
         for mut satellite in satellites {
-            if let Some(catnr) = satellite.catnr {
-                let tle = ctx
-                    .read()
+            let id = satellite.get_id().context("satellite ID expected")?;
+
+            let tle = if let Some(catnr) = satellite.get_catnr() {
+                ctx.read()
                     .await
                     .celestrak_service
-                    .gp_query(Query::CATNR(catnr.try_into()?))
+                    .gp_query(Query::CATNR((*catnr).try_into()?))
                     .await?
                     .into_iter()
-                    .exactly_one()?;
+                    .exactly_one()?
+            } else {
+                trace!("there no catnr for satellite with id({})", id);
+                continue;
+            };
 
-                satellite.tle1 = tle.tle1;
-                satellite.tle2 = tle.tle2;
+            satellite.set_tle1(tle.tle1);
+            satellite.set_tle2(tle.tle2);
 
-                if !ctx
-                    .read()
-                    .await
-                    .satellite_repository
-                    .write()
-                    .await
-                    .update(satellite)
-                    .await?
-                {
-                    warn!("catnr({}) not updated", catnr);
-                } else {
-                    info!("catnr({}) updated", catnr);
-                }
+            if !ctx
+                .read()
+                .await
+                .satellite_repository
+                .write()
+                .await
+                .update(satellite)
+                .await?
+            {
+                warn!("tle for satellite with id({}) is not updated", id);
+            } else {
+                info!("tle for satellite with id({}) is updated", id);
             }
         }
 

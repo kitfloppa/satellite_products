@@ -1,6 +1,6 @@
-use table_macro::Table;
+use table_macro::{Property, Table};
 
-use crate::persistence::repository::{HasId, Id, Reference};
+use crate::persistence::repository::{Id, Reference};
 
 use super::satellite_instrument::SatelliteInstrument;
 
@@ -8,14 +8,14 @@ use super::satellite_instrument::SatelliteInstrument;
 pub type SensorId = i32;
 pub type DataId = i32;
 
-crate::pub_fields! {
-    #[derive(Clone, Table)]
-    struct OceanColorMapping {
-        #[id] id: Option<Id>,
-        satellite_instrument_id: Reference<SatelliteInstrument>,
-        sensor_id: SensorId,
-        data_id: DataId,
-    }
+#[derive(Clone, Table, Property)]
+pub struct OceanColorMapping {
+    #[id]
+    #[none]
+    id: Option<Id>,
+    satellite_instrument_id: Reference<SatelliteInstrument>,
+    sensor_id: SensorId,
+    data_id: DataId,
 }
 
 impl OceanColorMapping {

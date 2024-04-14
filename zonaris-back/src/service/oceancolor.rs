@@ -131,7 +131,7 @@ impl Job for OceanColorJob {
                 img.save(&img_path)?;
 
                 let satellite_data =
-                    InstrumentData::new(*mapping.satellite_instrument_id, img_path);
+                    InstrumentData::new(**mapping.get_satellite_instrument_id(), img_path);
                 if !ctx
                     .read()
                     .await
@@ -221,8 +221,8 @@ impl OceanColorService for OceanColorServiceDefault {
         let sdate = sdate.format(fmt).to_string();
         let edate = edate.format(fmt).to_string();
 
-        let sensor_id = mapping.sensor_id.to_string();
-        let dtid = mapping.data_id.to_string();
+        let sensor_id = mapping.get_sensor_id().to_string();
+        let dtid = mapping.get_data_id().to_string();
 
         let mut params = HashMap::new();
         params.insert("results_as_file", "1");

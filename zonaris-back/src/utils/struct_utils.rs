@@ -1,3 +1,4 @@
+// TODO: rid of
 // https://stackoverflow.com/questions/53866508/how-to-make-a-public-struct-where-all-fields-are-public-without-repeating-pub
 #[macro_export]
 macro_rules! pub_fields {
@@ -16,6 +17,7 @@ macro_rules! pub_fields {
     }
 }
 
+// TODO: rid of
 #[macro_export]
 macro_rules! mapper {
     ($from_type:ty, $to_type:ty, {
@@ -23,10 +25,10 @@ macro_rules! mapper {
     }) => {
         impl From<$from_type> for $to_type {
             fn from(data: $from_type) -> Self {
-                if let Some(id) = data.id {
+                if let Some(id) = data.get_id() {
                     return Self {
                         id,
-                        $($to_field: data.$from_field),*
+                        $($to_field: data.$from_field().clone()),*
                     };
                 } else {
                     panic!("[{} -> {}] id should be presented!", stringify!($from_type), stringify!($to_type));

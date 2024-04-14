@@ -1,24 +1,20 @@
 use anyhow::{Error, Result};
-use table_macro::Table;
+use table_macro::{Property, Table};
 
-use crate::{
-    persistence::repository::{HasId, Id},
-    pub_fields,
-    service::celestrak::TLE,
-};
+use crate::{persistence::repository::Id, service::celestrak::TLE};
 
-pub_fields! {
-    #[derive(Clone, Table)]
-    struct Satellite {
-        #[id] id: Option<Id>,
-        name: String,
+#[derive(Clone, Table, Property)]
+pub struct Satellite {
+    #[id]
+    #[none]
+    id: Option<Id>,
+    name: String,
 
-        catnr: Option<i64>, // Satellite Catalog Number
+    catnr: Option<i64>, // Satellite Catalog Number
 
-        // TODO: make optional and maybe transfer to other table
-        tle1: String,
-        tle2: String,
-    }
+    // TODO: make optional and maybe transfer to other table
+    tle1: String,
+    tle2: String,
 }
 
 impl Satellite {
