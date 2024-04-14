@@ -1,4 +1,4 @@
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{self, Ident};
 
@@ -51,7 +51,7 @@ pub fn impl_table_macro(ast: &syn::DeriveInput) -> TokenStream {
         quote! {}
     };
 
-    let gen = quote! {
+    return quote! {
         #gen_hasid
 
         #[cfg(feature = "postgres")]
@@ -91,6 +91,4 @@ pub fn impl_table_macro(ast: &syn::DeriveInput) -> TokenStream {
             }
         }
     };
-
-    gen.into()
 }
