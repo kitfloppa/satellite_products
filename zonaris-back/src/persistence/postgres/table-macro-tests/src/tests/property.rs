@@ -137,3 +137,5 @@ fn test_only_setter_side_effect() {
     user.set_project_id(2);
     assert_eq!(user.get_project_id(), 2);
 }
+
+// TODO: add tests for WELL_KNOWN_TYPES

@@ -131,7 +131,7 @@ impl Job for OceanColorJob {
                 img.save(&img_path)?;
 
                 let satellite_data =
-                    InstrumentData::new(**mapping.get_satellite_instrument_id(), img_path);
+                    InstrumentData::new(*mapping.get_satellite_instrument_id(), img_path);
                 if !ctx
                     .read()
                     .await

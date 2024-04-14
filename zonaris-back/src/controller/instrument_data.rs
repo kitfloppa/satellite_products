@@ -33,7 +33,7 @@ async fn get_by_satellite_id(
 ) -> Result<Json<Vec<InstrumentDataResponse>>, AppError> {
     return Ok(Json(
         ctx.instrument_data_service
-            .get_by_satellite_id(*request.get_id())
+            .get_by_satellite_id(request.get_id())
             .await?
             .into_iter()
             .map(|it| InstrumentDataResponse::from(it))
@@ -54,7 +54,11 @@ async fn get_asset(
     ctx: State<Arc<AppContext>>,
     request: Query<GetAssetRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let asset = match ctx.instrument_data_service.get_by_id(*request.get_id()).await? {
+    let asset = match ctx
+        .instrument_data_service
+        .get_by_id(request.get_id())
+        .await?
+    {
         Some(instrument_data) => instrument_data,
         None => {
             return Ok((

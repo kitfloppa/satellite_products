@@ -62,7 +62,7 @@ impl InstrumentDataService for InstrumentDataServiceDefault {
             .get_all()
             .await?
             .into_iter()
-            .filter(|it| satellite_instrument_ids.contains(it.get_satellite_instrument_id()))
+            .filter(|it| satellite_instrument_ids.contains(&it.get_satellite_instrument_id()))
             .collect());
     }
 }

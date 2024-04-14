@@ -100,7 +100,7 @@ impl Job for CelestrakJob {
                 ctx.read()
                     .await
                     .celestrak_service
-                    .gp_query(Query::CATNR((*catnr).try_into()?))
+                    .gp_query(Query::CATNR((catnr).try_into()?))
                     .await?
                     .into_iter()
                     .exactly_one()?
