@@ -2,7 +2,7 @@ import { HOST } from './constants.api';
 
 const SATELLITES_GET = `${HOST}/satellite/all`;
 
-type SatelliteResponse = {
+export type SatelliteResponse = {
     id: number;
     name: string;
     tle1: string;
