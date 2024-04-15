@@ -33,7 +33,7 @@ async fn get_by_satellite_id(
 ) -> Result<Json<Vec<InstrumentDataResponse>>, AppError> {
     return Ok(Json(
         ctx.instrument_data_service
-            .get_by_satellite_id(request.id)
+            .get_by_satellite_id(request.get_id())
             .await?
             .into_iter()
             .map(|it| InstrumentDataResponse::from(it))
@@ -54,18 +54,22 @@ async fn get_asset(
     ctx: State<Arc<AppContext>>,
     request: Query<GetAssetRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let asset = match ctx.instrument_data_service.get_by_id(request.id).await? {
+    let asset = match ctx
+        .instrument_data_service
+        .get_by_id(request.get_id())
+        .await?
+    {
         Some(instrument_data) => instrument_data,
         None => {
             return Ok((
                 StatusCode::NOT_FOUND,
-                format!("instrument data with id {} not found", request.id),
+                format!("instrument data with id {} not found", request.get_id()),
             )
                 .into_response());
         }
     };
 
-    let file = tokio::fs::File::open(&asset.path).await?;
+    let file = tokio::fs::File::open(asset.get_path()).await?;
 
     let stream = ReaderStream::new(file);
     let body = axum::body::Body::from_stream(stream);

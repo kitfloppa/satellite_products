@@ -20,7 +20,7 @@ Project about planet and satellite viewer based on real physical parameters and 
 
 We use [EPSG:4326](https://epsg.io/4326) as cord system.
 
-- Vue.js
+- React
 - Rust
 - Python
 - Docker

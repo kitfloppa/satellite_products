@@ -1,3 +1,5 @@
+workspace = { members = ["src/persistence/postgres/table-macro-tests"] }
+
 [package]
 name = "zonaris"
 version = "0.1.0"

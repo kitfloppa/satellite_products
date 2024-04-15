@@ -1,16 +1,16 @@
-use table_macro::Table;
+use table_macro::{Property, Table};
 
-use crate::persistence::repository::{HasId, Id, Reference};
+use crate::persistence::repository::{Id, Reference};
 
 use super::{instrument::Instrument, satellite::Satellite};
 
-crate::pub_fields! {
-    #[derive(Clone, Table)]
-    struct SatelliteInstrument {
-        #[id] id: Option<Id>,
-        satellite_id: Reference<Satellite>,
-        instrument_id: Reference<Instrument>,
-    }
+#[derive(Clone, Table, Property)]
+pub struct SatelliteInstrument {
+    #[id]
+    #[none]
+    id: Option<Id>,
+    satellite_id: Reference<Satellite>,
+    instrument_id: Reference<Instrument>,
 }
 
 impl SatelliteInstrument {
